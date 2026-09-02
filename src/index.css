@@ -1,0 +1,76 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    font-family: 'Noto Sans', system-ui, sans-serif;
+    -webkit-tap-highlight-color: transparent;
+  }
+  [dir='rtl'] {
+    font-family: 'Noto Nastaliq Urdu', 'Noto Sans', system-ui, sans-serif;
+  }
+  :lang(bn) { font-family: 'Noto Sans Bengali', 'Noto Sans', system-ui, sans-serif; }
+  :lang(ta) { font-family: 'Noto Sans Tamil', 'Noto Sans', system-ui, sans-serif; }
+  :lang(te) { font-family: 'Noto Sans Telugu', 'Noto Sans', system-ui, sans-serif; }
+  :lang(gu) { font-family: 'Noto Sans Gujarati', 'Noto Sans', system-ui, sans-serif; }
+  :lang(kn) { font-family: 'Noto Sans Kannada', 'Noto Sans', system-ui, sans-serif; }
+  :lang(pa) { font-family: 'Noto Sans Gurmukhi', 'Noto Sans', system-ui, sans-serif; }
+  :lang(hi), :lang(mr) { font-family: 'Noto Sans Devanagari', 'Noto Sans', system-ui, sans-serif; }
+}
+
+@layer components {
+  .card {
+    @apply bg-white rounded-2xl shadow-sm border border-gray-100 p-4 transition-all duration-200 hover:shadow-md;
+  }
+  .btn-primary {
+    @apply bg-primary-600 text-white font-semibold py-3 px-6 rounded-xl hover:bg-primary-700 active:bg-primary-800 transition-colors duration-150 text-lg;
+  }
+  .btn-secondary {
+    @apply bg-white text-primary-700 font-semibold py-3 px-6 rounded-xl border-2 border-primary-600 hover:bg-primary-50 active:bg-primary-100 transition-colors duration-150 text-lg;
+  }
+  .input-field {
+    @apply w-full py-3 px-4 rounded-xl border-2 border-gray-200 focus:border-primary-500 focus:ring-2 focus:ring-primary-200 outline-none text-lg transition-all duration-150;
+  }
+  .nav-item {
+    @apply flex flex-col items-center justify-center py-2 px-3 text-gray-500 hover:text-primary-600 transition-colors duration-150 min-h-[48px] min-w-[48px];
+  }
+  .nav-item-active {
+    @apply text-primary-600 font-semibold;
+  }
+  .badge {
+    @apply inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold;
+  }
+  .badge-green { @apply bg-green-100 text-green-800; }
+  .badge-red { @apply bg-red-100 text-red-800; }
+  .badge-yellow { @apply bg-yellow-100 text-yellow-800; }
+  .badge-blue { @apply bg-blue-100 text-blue-800; }
+}
+
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+html { scroll-behavior: smooth; }
+* { -webkit-touch-callout: none; }
+input, textarea, select { font-size: 16px !important; }
+
+
+@keyframes ticker-scroll {
+  from {
+    transform: translateX(0);
+  }
+
+  to {
+    transform: translateX(-50%);
+  }
+}
+
+.ticker-track {
+  animation: ticker-scroll 30s linear infinite;
+  will-change: transform;
+}
+
+.ticker-track:hover {
+  animation-play-state: paused;
+}
