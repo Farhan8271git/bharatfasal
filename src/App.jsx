@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { Routes, Route, Navigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
+import { Analytics } from "@vercel/analytics/react";
 import FarmerPaymentsPage from "./pages/FarmerPaymentsPage";
 import FPOPaymentsPage from "./pages/FPOPaymentsPage";
 // import BuyerPaymentsPage from "./pages/BuyerPaymentsPage";
@@ -66,11 +67,21 @@ function App() {
   };
 
   if (isFirstVisit) {
-    return <LanguageSelectPage onComplete={handleLanguageSelected} />;
+    return (
+      <>
+        <LanguageSelectPage onComplete={handleLanguageSelected} />
+        <Analytics />
+      </>
+    );
   }
 
   if (!isLoggedIn) {
-    return <LoginPage onLogin={handleLogin} />;
+    return (
+      <>
+        <LoginPage onLogin={handleLogin} />
+        <Analytics />
+      </>
+    );
   }
 
   const getDashboard = () => {
@@ -148,6 +159,7 @@ function App() {
 
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
+      <Analytics />
     </Layout>
   );
 }
