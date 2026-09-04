@@ -50,6 +50,7 @@
   "price_per_quintal": "Price per Quintal",
   "msp": "MSP",
   "market_price": "Market Price",
+  "market_range": "Market Range",
   "price_trend": "Price Trend",
   "last_7_days": "Last 7 Days",
   "last_30_days": "Last 30 Days",
@@ -168,5 +169,110 @@
   "bajra": "Pearl Millet",
   "jowar": "Sorghum",
   "turmeric": "Turmeric",
-  "groundnut": "Groundnut"
+  "groundnut": "Groundnut",
+
+  "nav_features": "Features",
+  "nav_how_it_works": "How It Works",
+  "nav_about": "About",
+  "nav_login": "Login",
+  "nav_register": "Register",
+
+  "get_started": "Get Started",
+  "explore_features": "Explore Features",
+
+  "landing_hero_badge": "India's Digital Agricultural Marketplace",
+  "landing_hero_title_line1": "Better Markets for",
+  "landing_hero_title_line2": "India's Farmers",
+  "landing_hero_description": "Check market prices, connect with verified buyers, and sell your produce with greater confidence.",
+
+  "previous_image": "Previous image",
+  "next_image": "Next image",
+  "go_to_slide": "Go to slide {{number}}",
+
+  "market_information": "Market Information",
+  "todays_mandi_prices": "Today's Mandi Prices",
+  "market_preview_description": "Check recent market prices and understand where your produce may get a better value.",
+  "view_all_prices": "View All Prices",
+
+  "loading_mandi_prices": "Loading latest mandi prices...",
+  "market_prices_unavailable": "Market prices are temporarily unavailable. Please try again.",
+  "try_again": "Try Again",
+  "no_mandi_data": "No mandi price data is available right now.",
+  "market_reported": "Market reported",
+  "min_max": "Min – Max",
+  "date_unavailable": "Date unavailable",
+  "mandi_source_note": "Prices are sourced from Government of India mandi data. Displayed using the latest available market reporting date.",
+
+  "features_label": "What We Offer",
+  "features_title": "Everything You Need to Sell Better",
+  "features_description": "Bharat Fasal brings market prices, buyers and important selling information together in one simple platform.",
+
+  "feature_market_prices_title": "Market Prices",
+  "feature_market_prices_description": "Check current mandi prices and market information to understand where your produce may get a better price.",
+
+  "feature_verified_buyers_title": "Verified Buyers",
+  "feature_verified_buyers_description": "Find suitable and verified buyers who are looking for agricultural produce.",
+
+  "feature_list_produce_title": "List Your Produce",
+  "feature_list_produce_description": "Add your crop, quantity, quality and expected price to create a digital produce listing.",
+
+  "feature_transport_title": "Transport & Delivery",
+  "feature_transport_description": "Manage transportation and delivery information for your produce in one place.",
+
+  "feature_payments_title": "Payments",
+  "feature_payments_description": "Keep track of your sales, payments and transaction information in one place.",
+
+  "feature_quality_title": "Quality & Verification",
+  "feature_quality_description": "Share clear produce details and quality information to build trust with buyers.",
+
+  "how_it_works_label": "Simple Process",
+  "how_it_works_title": "How Bharat Fasal Works",
+  "how_it_works_description": "From listing your produce to completing the sale, Bharat Fasal keeps the process simple and transparent.",
+
+  "step": "STEP",
+
+  "how_step_1_title": "List Your Produce",
+  "how_step_1_description": "Add your crop, quantity, quality and expected price.",
+
+  "how_step_2_title": "Find Buyers",
+  "how_step_2_description": "Explore buyer requirements and find suitable opportunities.",
+
+  "how_step_3_title": "Connect & Negotiate",
+  "how_step_3_description": "Compare offers and connect with suitable buyers.",
+
+  "how_step_4_title": "Complete the Deal",
+  "how_step_4_description": "Manage delivery, payment and settlement information.",
+
+  "landing_cta_label": "Get Started",
+  "landing_cta_title": "Make Better Decisions for Your Produce",
+  "landing_cta_description": "Access market information, connect with buyers and manage your agricultural trade through one simple platform.",
+
+"why_bharat_fasal": "Why Bharat Fasal",
+"making_agricultural_trade_simpler": "Making Agricultural Trade Simpler",
+"why_bharat_fasal_description": "Bharat Fasal brings important market information and agricultural trade activities together, helping users make more informed decisions and build better connections.",
+
+"more_transparent": "More Transparent",
+"more_transparent_text": "Access clear market and buyer information before making selling decisions.",
+
+"better_market_access": "Better Market Access",
+"better_market_access_text": "Explore more buyers and market opportunities beyond your local network.",
+
+"direct_connections": "Direct Connections",
+"direct_connections_text": "Connect farmers, FPOs and buyers through one digital platform.",
+
+"simple_organized": "Simple & Organized",
+"simple_organized_text": "Keep produce listings, deals, payments and delivery information organized.",
+
+"one_platform": "One Platform",
+"built_for_everyone_agriculture": "Built for Everyone in Agriculture",
+"built_for_everyone_agriculture_description": "Whether you grow, aggregate or buy agricultural produce, Bharat Fasal helps you connect with the right opportunities.",
+
+"farmers": "Farmers",
+"farmers_description": "Check market prices, list your produce and connect with verified buyers.",
+
+"fpos": "FPOs",
+"fpos_description": "Manage farmer produce, aggregate quantities and find better market opportunities.",
+
+"buyers": "Buyers",
+"buyers_description": "Discover available produce and connect directly with farmers and FPOs."
 }

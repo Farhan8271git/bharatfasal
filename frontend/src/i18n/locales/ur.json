@@ -168,5 +168,104 @@
   "bajra": "باجرہ",
   "jowar": "جوار",
   "turmeric": "ہلدی",
-  "groundnut": "مونگ پھلی"
+  "groundnut": "مونگ پھلی",
+  "nav_features": "خصوصیات",
+"nav_how_it_works": "یہ کیسے کام کرتا ہے",
+"nav_about": "ہمارے بارے میں",
+"get_started": "شروع کریں",
+"explore_features": "خصوصیات دیکھیں",
+
+"landing_hero_badge": "بھارت کا ڈیجیٹل زرعی بازار",
+"landing_hero_title_line1": "بہتر بازار",
+"landing_hero_title_line2": "بھارت کے کسانوں کے لیے",
+"landing_hero_description": "منڈی کی قیمتیں دیکھیں، تصدیق شدہ خریداروں سے رابطہ کریں اور زیادہ اعتماد کے ساتھ اپنی فصل فروخت کریں۔",
+
+"previous_image": "پچھلی تصویر",
+"next_image": "اگلی تصویر",
+"go_to_slide": "سلائیڈ {{number}} پر جائیں",
+
+"market_information": "بازار کی معلومات",
+"todays_mandi_prices": "آج کی منڈی قیمتیں",
+"market_preview_description": "حالیہ منڈی قیمتیں دیکھیں اور سمجھیں کہ آپ کی فصل کو کہاں بہتر قیمت مل سکتی ہے۔",
+"view_all_prices": "تمام قیمتیں دیکھیں",
+"loading_mandi_prices": "تازہ ترین منڈی قیمتیں لوڈ ہو رہی ہیں...",
+"market_prices_unavailable": "منڈی کی قیمتیں فی الحال دستیاب نہیں ہیں۔ دوبارہ کوشش کریں۔",
+"try_again": "دوبارہ کوشش کریں",
+"no_mandi_data": "اس وقت منڈی کی قیمتوں کا ڈیٹا دستیاب نہیں ہے۔",
+"market_reported": "منڈی رپورٹ",
+"min_max": "کم از کم – زیادہ سے زیادہ",
+"date_unavailable": "تاریخ دستیاب نہیں",
+"mandi_source_note": "قیمتیں حکومت ہند کے منڈی ڈیٹا سے حاصل کی جاتی ہیں۔ تازہ ترین دستیاب مارکیٹ رپورٹنگ تاریخ دکھائی گئی ہے۔",
+
+"features_label": "ہم کیا پیش کرتے ہیں",
+"features_title": "بہتر فروخت کے لیے سب کچھ ایک جگہ",
+"features_description": "بھارت فصل منڈی کی قیمتیں، خریدار اور فروخت سے متعلق اہم معلومات ایک آسان پلیٹ فارم پر لاتا ہے۔",
+
+"feature_market_prices_title": "منڈی قیمتیں",
+"feature_market_prices_description": "حالیہ منڈی قیمتیں اور مارکیٹ کی معلومات دیکھیں تاکہ بہتر قیمت سمجھ سکیں۔",
+
+"feature_verified_buyers_title": "تصدیق شدہ خریدار",
+"feature_verified_buyers_description": "موزوں اور تصدیق شدہ خریدار تلاش کریں جو زرعی پیداوار خریدنا چاہتے ہیں۔",
+
+"feature_list_produce_title": "اپنی فصل درج کریں",
+"feature_list_produce_description": "فصل، مقدار، معیار اور متوقع قیمت شامل کرکے ڈیجیٹل لسٹنگ بنائیں۔",
+
+"feature_transport_title": "ٹرانسپورٹ اور ترسیل",
+"feature_transport_description": "اپنی فصل کی نقل و حمل اور ترسیل کی معلومات ایک جگہ منظم کریں۔",
+
+"feature_payments_title": "ادائیگیاں",
+"feature_payments_description": "اپنی فروخت، ادائیگیوں اور لین دین کی معلومات ایک جگہ دیکھیں۔",
+
+"feature_quality_title": "معیار اور تصدیق",
+"feature_quality_description": "خریداروں کے ساتھ اعتماد بڑھانے کے لیے فصل کی واضح تفصیلات اور معیار کی معلومات شیئر کریں۔",
+
+"how_it_works_label": "آسان طریقہ",
+"how_it_works_title": "بھارت فصل کیسے کام کرتا ہے",
+"how_it_works_description": "فصل درج کرنے سے لے کر فروخت مکمل کرنے تک بھارت فصل پورے عمل کو آسان اور شفاف رکھتا ہے۔",
+
+"step": "مرحلہ",
+"how_step_1_title": "اپنی فصل درج کریں",
+"how_step_1_description": "فصل، مقدار، معیار اور متوقع قیمت شامل کریں۔",
+
+"how_step_2_title": "خریدار تلاش کریں",
+"how_step_2_description": "خریداروں کی ضروریات دیکھیں اور موزوں مواقع تلاش کریں۔",
+
+"how_step_3_title": "رابطہ اور بات چیت",
+"how_step_3_description": "پیشکشوں کا موازنہ کریں اور مناسب خریدار سے رابطہ کریں۔",
+
+"how_step_4_title": "معاملہ مکمل کریں",
+"how_step_4_description": "ترسیل، ادائیگی اور تصفیہ کی معلومات کا انتظام کریں۔",
+
+"landing_cta_label": "شروع کریں",
+"landing_cta_title": "اپنی فصل کے لیے بہتر فیصلے کریں",
+"landing_cta_description": "مارکیٹ کی معلومات حاصل کریں، خریداروں سے رابطہ کریں اور اپنی زرعی تجارت ایک آسان پلیٹ فارم کے ذریعے منظم کریں۔",
+
+"why_bharat_fasal": "بھارت فصل کیوں",
+"making_agricultural_trade_simpler": "زرعی تجارت کو آسان بنانا",
+"why_bharat_fasal_description": "بھارت فصل اہم مارکیٹ معلومات اور زرعی تجارت کی سرگرمیوں کو ایک جگہ لاتا ہے، تاکہ صارفین بہتر فیصلے کر سکیں اور بہتر روابط قائم کر سکیں۔",
+
+"more_transparent": "زیادہ شفاف",
+"more_transparent_text": "فصل فروخت کرنے سے پہلے واضح مارکیٹ اور خریدار کی معلومات حاصل کریں۔",
+
+"better_market_access": "بہتر مارکیٹ تک رسائی",
+"better_market_access_text": "اپنے مقامی نیٹ ورک سے آگے مزید خریداروں اور مارکیٹ مواقع تلاش کریں۔",
+
+"direct_connections": "براہ راست رابطے",
+"direct_connections_text": "کسانوں، FPOs اور خریداروں کو ایک ڈیجیٹل پلیٹ فارم کے ذریعے جوڑیں۔",
+
+"simple_organized": "آسان اور منظم",
+"simple_organized_text": "فصل کی لسٹنگ، معاملات، ادائیگی اور ترسیل کی معلومات منظم رکھیں۔",
+
+"one_platform": "ایک پلیٹ فارم",
+"built_for_everyone_agriculture": "زراعت سے وابستہ ہر شخص کے لیے",
+"built_for_everyone_agriculture_description": "چاہے آپ فصل اگاتے ہوں، اسے اکٹھا کرتے ہوں یا زرعی پیداوار خریدتے ہوں، بھارت فصل آپ کو صحیح مواقع سے جوڑنے میں مدد کرتا ہے۔",
+
+"farmers": "کسان",
+"farmers_description": "منڈی قیمتیں دیکھیں، اپنی فصل درج کریں اور تصدیق شدہ خریداروں سے رابطہ کریں۔",
+
+"fpos": "FPOs",
+"fpos_description": "کسانوں کی پیداوار کا انتظام کریں، مقدار اکٹھی کریں اور بہتر مارکیٹ مواقع تلاش کریں۔",
+
+"buyers": "خریدار",
+"buyers_description": "دستیاب زرعی پیداوار تلاش کریں اور کسانوں اور FPOs سے براہ راست رابطہ کریں۔"
 }

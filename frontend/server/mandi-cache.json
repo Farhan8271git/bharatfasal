@@ -1,0 +1,130 @@
+{
+  "success": true,
+  "source": "Government of India - data.gov.in / AGMARKNET",
+  "resourceId": "9ef84268-d588-465a-a308-a864a43d0070",
+  "fetchedAt": "2026-09-04T11:19:29.894Z",
+  "count": 10,
+  "records": [
+    {
+      "state": "Andhra Pradesh",
+      "district": "Nandyal",
+      "market": "Allagadda APMC",
+      "commodity": "Maize",
+      "variety": "Local",
+      "grade": "FAQ",
+      "arrivalDate": "04/09/2026",
+      "minPrice": 2000,
+      "maxPrice": 2200,
+      "modalPrice": 2100
+    },
+    {
+      "state": "Madhya Pradesh",
+      "district": "Sidhi",
+      "market": "Sidhi APMC",
+      "commodity": "Wheat",
+      "variety": "Mill Quality",
+      "grade": "Non-FAQ",
+      "arrivalDate": "04/09/2026",
+      "minPrice": 2400,
+      "maxPrice": 2400,
+      "modalPrice": 2400
+    },
+    {
+      "state": "Keralam",
+      "district": "Palakad",
+      "market": "Kollengode Market",
+      "commodity": "Green Chilli",
+      "variety": "Green Chilly",
+      "grade": "FAQ",
+      "arrivalDate": "04/09/2026",
+      "minPrice": 4000,
+      "maxPrice": 4400,
+      "modalPrice": 4200
+    },
+    {
+      "state": "Keralam",
+      "district": "Palakad",
+      "market": "Kollengode Market",
+      "commodity": "Onion",
+      "variety": "Small",
+      "grade": "FAQ",
+      "arrivalDate": "04/09/2026",
+      "minPrice": 6000,
+      "maxPrice": 6400,
+      "modalPrice": 6200
+    },
+    {
+      "state": "Keralam",
+      "district": "Palakad",
+      "market": "Kollengode Market",
+      "commodity": "Pumpkin",
+      "variety": "Pumpkin",
+      "grade": "FAQ",
+      "arrivalDate": "04/09/2026",
+      "minPrice": 2000,
+      "maxPrice": 2400,
+      "modalPrice": 2200
+    },
+    {
+      "state": "Keralam",
+      "district": "Palakad",
+      "market": "Kollengode Market",
+      "commodity": "Banana",
+      "variety": "Poovan",
+      "grade": "Grade B",
+      "arrivalDate": "04/09/2026",
+      "minPrice": 5500,
+      "maxPrice": 5900,
+      "modalPrice": 5700
+    },
+    {
+      "state": "Keralam",
+      "district": "Palakad",
+      "market": "Kollengode Market",
+      "commodity": "Banana",
+      "variety": "Palayamthodan",
+      "grade": "Grade B",
+      "arrivalDate": "04/09/2026",
+      "minPrice": 3500,
+      "maxPrice": 3900,
+      "modalPrice": 3700
+    },
+    {
+      "state": "Keralam",
+      "district": "Palakad",
+      "market": "Kollengode Market",
+      "commodity": "Bottle gourd",
+      "variety": "Bottle Gourd",
+      "grade": "FAQ",
+      "arrivalDate": "04/09/2026",
+      "minPrice": 2500,
+      "maxPrice": 2900,
+      "modalPrice": 2700
+    },
+    {
+      "state": "Keralam",
+      "district": "Palakad",
+      "market": "Kollengode Market",
+      "commodity": "Amaranthus",
+      "variety": "Amaranthus",
+      "grade": "FAQ",
+      "arrivalDate": "04/09/2026",
+      "minPrice": 2000,
+      "maxPrice": 2400,
+      "modalPrice": 2200
+    },
+    {
+      "state": "Keralam",
+      "district": "Palakad",
+      "market": "Kollengode Market",
+      "commodity": "Cucumbar(Kheera)",
+      "variety": "Cucumbar",
+      "grade": "FAQ",
+      "arrivalDate": "04/09/2026",
+      "minPrice": 2000,
+      "maxPrice": 2400,
+      "modalPrice": 2200
+    }
+  ],
+  "cacheTime": 1788520769895
+}

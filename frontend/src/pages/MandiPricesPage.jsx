@@ -1,6 +1,12 @@
-import { useEffect, useMemo, useState } from "react";
+import {
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
+
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
+
 import {
   Search,
   Wheat,
@@ -15,13 +21,15 @@ import {
 
 import SearchBar from "../components/SearchBar";
 import PriceCard from "../components/PriceCard";
-import { api } from "../utils/api.js";
 
-// category helper
+// =====================================================
+// CATEGORY HELPER
+// =====================================================
+
 function getCategory(commodity = "") {
   const name = commodity.toLowerCase().trim();
 
-  // grains
+  // Grains
   if (
     name.includes("wheat") ||
     name.includes("rice") ||
@@ -36,7 +44,7 @@ function getCategory(commodity = "") {
     return "grains";
   }
 
-  // vegetables
+  // Vegetables
   if (
     name.includes("tomato") ||
     name.includes("potato") ||
@@ -57,7 +65,7 @@ function getCategory(commodity = "") {
     return "vegetables";
   }
 
-  // fruits
+  // Fruits
   if (
     name.includes("apple") ||
     name.includes("banana") ||
@@ -72,7 +80,7 @@ function getCategory(commodity = "") {
     return "fruits";
   }
 
-  // spices
+  // Spices
   if (
     name.includes("turmeric") ||
     name.includes("chilli") ||
@@ -85,7 +93,7 @@ function getCategory(commodity = "") {
     return "spices";
   }
 
-  // oilseeds
+  // Oilseeds
   if (
     name.includes("soybean") ||
     name.includes("soyabean") ||
@@ -101,7 +109,10 @@ function getCategory(commodity = "") {
   return "other";
 }
 
-// category icons
+// =====================================================
+// CATEGORY ICON
+// =====================================================
+
 function CategoryIcon({ category }) {
   if (category === "grains") {
     return <Wheat size={15} />;
@@ -118,82 +129,32 @@ function CategoryIcon({ category }) {
   return <Sprout size={15} />;
 }
 
-// normalize government mandi records
-function normalizeMandiRecords(records) {
-  return records
-    .map((item) => {
-      const commodity =
-        item?.commodity ??
-        item?.Commodity ??
-        item?.crop ??
-        item?.Crop ??
-        "";
+// =====================================================
+// MAIN PAGE
+// =====================================================
 
-      const market =
-        item?.market ??
-        item?.Market ??
-        item?.market_name ??
-        item?.Market_Name ??
-        item?.district ??
-        item?.District ??
-        "";
-
-      const state = item?.state ?? item?.State ?? "";
-
-      const minPrice = Number(
-        item?.min_price ??
-          item?.Min_Price ??
-          item?.["Min Price"] ??
-          0
-      );
-
-      const maxPrice = Number(
-        item?.max_price ??
-          item?.Max_Price ??
-          item?.["Max Price"] ??
-          0
-      );
-
-      const modalPrice = Number(
-        item?.modal_price ??
-          item?.Modal_Price ??
-          item?.["Modal Price"] ??
-          0
-      );
-
-      return {
-        ...item,
-        commodity: String(commodity).trim(),
-        market: String(market).trim(),
-        state: String(state).trim(),
-        min_price: minPrice,
-        max_price: maxPrice,
-        modal_price: modalPrice,
-        category: getCategory(commodity),
-      };
-    })
-    .filter(
-      (item) =>
-        item.commodity &&
-        item.modal_price > 0
-    );
-}
-
-// main page
 export default function MandiPricesPage() {
   const { t } = useTranslation();
   const navigate = useNavigate();
 
-  // page state
+  // ===================================================
+  // STATES
+  // ===================================================
+
   const [search, setSearch] = useState("");
   const [activeCategory, setActiveCategory] = useState("all");
+
   const [prices, setPrices] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+
   const [error, setError] = useState("");
   const [lastUpdated, setLastUpdated] = useState(null);
 
-  // fetch mandi data from backend api
+  // ===================================================
+  // FETCH MANDI DATA
+  // ===================================================
+
   const fetchMandiPrices = async (isManualRefresh = false) => {
     try {
       if (isManualRefresh) {
@@ -204,13 +165,120 @@ export default function MandiPricesPage() {
 
       setError("");
 
-      const data = await api.getMandiPrices();
+      const response = await fetch(
+        "http://localhost:5000/api/mandi-prices",
+        {
+          method: "GET",
+          headers: {
+            Accept: "application/json",
+          },
+        }
+      );
 
-      if (!data || !Array.isArray(data.records)) {
-        throw new Error("No mandi records found");
+      const text = await response.text();
+
+      if (!response.ok) {
+        throw new Error(
+          `Mandi API returned ${response.status}`
+        );
       }
 
-      const normalized = normalizeMandiRecords(data.records);
+      let data;
+
+      try {
+        data = JSON.parse(text);
+      } catch {
+        throw new Error(
+          "Mandi API returned invalid JSON"
+        );
+      }
+
+      if (
+        !data ||
+        !Array.isArray(data.records)
+      ) {
+        throw new Error(
+          "No mandi records found"
+        );
+      }
+
+      // =================================================
+      // NORMALIZE GOVERNMENT DATA
+      // =================================================
+
+      const normalized = data.records
+        .map((item) => {
+          const commodity =
+            item?.commodity ??
+            item?.Commodity ??
+            item?.crop ??
+            item?.Crop ??
+            "";
+
+          const market =
+            item?.market ??
+            item?.Market ??
+            item?.market_name ??
+            item?.Market_Name ??
+            item?.district ??
+            item?.District ??
+            "";
+
+          const state =
+            item?.state ??
+            item?.State ??
+            "";
+
+          const minPrice = Number(
+            item?.min_price ??
+            item?.Min_Price ??
+            item?.["Min Price"] ??
+            0
+          );
+
+          const maxPrice = Number(
+            item?.max_price ??
+            item?.Max_Price ??
+            item?.["Max Price"] ??
+            0
+          );
+
+          const modalPrice = Number(
+            item?.modal_price ??
+            item?.Modal_Price ??
+            item?.["Modal Price"] ??
+            0
+          );
+
+          return {
+            ...item,
+
+            commodity: String(
+              commodity
+            ).trim(),
+
+            market: String(
+              market
+            ).trim(),
+
+            state: String(
+              state
+            ).trim(),
+
+            min_price: minPrice,
+            max_price: maxPrice,
+            modal_price: modalPrice,
+
+            category: getCategory(
+              commodity
+            ),
+          };
+        })
+        .filter(
+          (item) =>
+            item.commodity &&
+            item.modal_price > 0
+        );
 
       if (normalized.length === 0) {
         throw new Error(
@@ -221,50 +289,68 @@ export default function MandiPricesPage() {
       setPrices(normalized);
       setLastUpdated(new Date());
       setError("");
+
     } catch (err) {
-      console.error("Mandi prices error:", err);
+      console.error(
+        "Mandi prices error:",
+        err
+      );
 
       setError(
         err?.message ||
           "Unable to load mandi prices"
       );
 
-      // keep existing prices visible when refresh fails
+      // Important:
+      // Existing prices stay visible if refresh fails.
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
   };
 
-  // initial load and auto refresh
+  // ===================================================
+  // INITIAL LOAD + 5 MINUTE REFRESH
+  // ===================================================
+
   useEffect(() => {
     fetchMandiPrices();
 
-    const interval = setInterval(() => {
-      fetchMandiPrices();
-    }, 5 * 60 * 1000);
+    const interval = setInterval(
+      () => {
+        fetchMandiPrices();
+      },
+      5 * 60 * 1000
+    );
 
     return () => {
       clearInterval(interval);
     };
   }, []);
 
-  // filter prices
+  // ===================================================
+  // FILTER DATA
+  // ===================================================
+
   const filteredPrices = useMemo(() => {
-    const searchText = search.toLowerCase().trim();
+    const searchText =
+      search.toLowerCase().trim();
 
     return prices.filter((price) => {
-      const commodity = String(
-        price.commodity || ""
-      ).toLowerCase();
+      const commodity =
+        String(
+          price.commodity || ""
+        ).toLowerCase();
 
-      const market = String(
-        price.market || ""
-      ).toLowerCase();
+      const market =
+        String(
+          price.market || ""
+        ).toLowerCase();
 
-      const state = String(
-        price.state || ""
-      ).toLowerCase();
+      const state =
+        String(
+          price.state || ""
+        ).toLowerCase();
 
       const matchesSearch =
         !searchText ||
@@ -281,9 +367,16 @@ export default function MandiPricesPage() {
         matchesCategory
       );
     });
-  }, [prices, search, activeCategory]);
+  }, [
+    prices,
+    search,
+    activeCategory,
+  ]);
 
-  // group prices by commodity
+  // ===================================================
+  // GROUP BY COMMODITY
+  // ===================================================
+
   const commodityGroups = useMemo(() => {
     const groups = {};
 
@@ -300,7 +393,10 @@ export default function MandiPricesPage() {
     return Object.entries(groups);
   }, [filteredPrices]);
 
-  // categories
+  // ===================================================
+  // CATEGORIES
+  // ===================================================
+
   const categoryList = [
     {
       id: "all",
@@ -328,6 +424,10 @@ export default function MandiPricesPage() {
     },
   ];
 
+  // ===================================================
+  // UI
+  // ===================================================
+
   return (
     <div className="w-full min-h-screen bg-gray-50">
       <div
@@ -342,7 +442,10 @@ export default function MandiPricesPage() {
           pb-10
         "
       >
-        {/* header */}
+        {/* =================================================
+            HEADER
+        ================================================= */}
+
         <div
           className="
             flex
@@ -391,7 +494,8 @@ export default function MandiPricesPage() {
             </p>
           </div>
 
-          {/* updated time and refresh */}
+          {/* UPDATED + REFRESH */}
+
           <div
             className="
               flex
@@ -462,7 +566,10 @@ export default function MandiPricesPage() {
           </div>
         </div>
 
-        {/* search */}
+        {/* =================================================
+            SEARCH
+        ================================================= */}
+
         <div className="mb-4">
           <SearchBar
             value={search}
@@ -471,7 +578,10 @@ export default function MandiPricesPage() {
           />
         </div>
 
-        {/* category filters */}
+        {/* =================================================
+            CATEGORY FILTER
+        ================================================= */}
+
         <div
           className="
             flex
@@ -484,7 +594,8 @@ export default function MandiPricesPage() {
         >
           {categoryList.map((category) => {
             const active =
-              activeCategory === category.id;
+              activeCategory ===
+              category.id;
 
             return (
               <button
@@ -525,7 +636,10 @@ export default function MandiPricesPage() {
           })}
         </div>
 
-        {/* loading */}
+        {/* =================================================
+            LOADING
+        ================================================= */}
+
         {loading && (
           <div
             className="
@@ -552,7 +666,10 @@ export default function MandiPricesPage() {
           </div>
         )}
 
-        {/* error without existing data */}
+        {/* =================================================
+            ERROR — NO DATA
+        ================================================= */}
+
         {!loading &&
           error &&
           prices.length === 0 && (
@@ -569,7 +686,10 @@ export default function MandiPricesPage() {
             >
               <AlertCircle
                 size={34}
-                className="mx-auto text-red-500"
+                className="
+                  mx-auto
+                  text-red-500
+                "
               />
 
               <h3
@@ -594,9 +714,9 @@ export default function MandiPricesPage() {
 
               <button
                 type="button"
-                onClick={() =>
-                  fetchMandiPrices(true)
-                }
+                onClick={() => {
+                  fetchMandiPrices(true);
+                }}
                 className="
                   mt-5
                   inline-flex
@@ -618,7 +738,10 @@ export default function MandiPricesPage() {
             </div>
           )}
 
-        {/* refresh warning with existing data */}
+        {/* =================================================
+            REFRESH WARNING
+        ================================================= */}
+
         {!loading &&
           error &&
           prices.length > 0 && (
@@ -651,7 +774,10 @@ export default function MandiPricesPage() {
             </div>
           )}
 
-        {/* commodity groups */}
+        {/* =================================================
+            COMMODITY GROUPS
+        ================================================= */}
+
         {!loading &&
           commodityGroups.map(
             ([commodityName, commodityPrices]) => {
@@ -663,7 +789,8 @@ export default function MandiPricesPage() {
                   key={commodityName}
                   className="mb-9"
                 >
-                  {/* group header */}
+                  {/* GROUP HEADER */}
+
                   <div
                     className="
                       mb-4
@@ -714,8 +841,7 @@ export default function MandiPricesPage() {
                         <p className="text-xs text-gray-500">
                           {commodityPrices.length}{" "}
                           market
-                          {commodityPrices.length !==
-                          1
+                          {commodityPrices.length !== 1
                             ? "s"
                             : ""}
                         </p>
@@ -752,7 +878,8 @@ export default function MandiPricesPage() {
                     </button>
                   </div>
 
-                  {/* price cards */}
+                  {/* PRICE CARDS */}
+
                   <div
                     className="
                       grid
@@ -781,7 +908,10 @@ export default function MandiPricesPage() {
             }
           )}
 
-        {/* no results */}
+        {/* =================================================
+            NO RESULTS
+        ================================================= */}
+
         {!loading &&
           !error &&
           filteredPrices.length === 0 && (
@@ -798,7 +928,10 @@ export default function MandiPricesPage() {
             >
               <Search
                 size={42}
-                className="mx-auto text-gray-300"
+                className="
+                  mx-auto
+                  text-gray-300
+                "
               />
 
               <p
@@ -819,7 +952,8 @@ export default function MandiPricesPage() {
                   text-gray-400
                 "
               >
-                Try another crop, mandi or state
+                Try another crop, mandi or
+                state
               </p>
 
               {search && (

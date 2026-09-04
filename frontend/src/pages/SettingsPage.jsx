@@ -29,7 +29,6 @@ import {
   AlertCircle,
   X,
   Save,
-  Upload,
   IndianRupee,
   Package,
   Truck,
@@ -197,6 +196,13 @@ export default function SettingsPage({ onLogout, user }) {
   const [verification, setVerification] = useState(() =>
     getStoredVerification(user),
   );
+
+  // Identity verification details
+  const [identityDetails, setIdentityDetails] = useState({
+    documentType: "",
+    documentNumber: "",
+  });
+  const [identityError, setIdentityError] = useState("");
 
   // ==========================================================
   // SYNC VERIFICATION
@@ -401,45 +407,117 @@ export default function SettingsPage({ onLogout, user }) {
   // ==========================================================
 
   const submitVerification = () => {
+    if (!isBuyer) {
+      const type = identityDetails.documentType;
+      const number = identityDetails.documentNumber.trim().toUpperCase();
+
+      if (!type) {
+        setIdentityError("Please select a document type.");
+        return;
+      }
+
+      if (!number) {
+        setIdentityError("Please enter your document number.");
+        return;
+      }
+
+      const rules = {
+        aadhaar: /^\d{12}$/,
+        pan: /^[A-Z]{5}\d{4}[A-Z]$/,
+        voter: /^[A-Z]{3,4}\d{6,10}$/,
+        driving: /^[A-Z]{2}\d{2}\s?\d{4,13}$/,
+      };
+
+      if (rules[type] && !rules[type].test(number)) {
+        setIdentityError(
+          type === "aadhaar"
+            ? "Aadhaar number must contain 12 digits."
+            : type === "pan"
+              ? "Enter a valid PAN format, e.g. ABCDE1234F."
+              : "Please enter a valid document number.",
+        );
+        return;
+      }
+
+      const request = {
+        id: `VER-${Date.now()}`,
+        userId: user?.id || `user-${Date.now()}`,
+        type: role,
+        name: profile.name || user?.name || "",
+        phone: profile.phone || user?.phone || "",
+        email: profile.email || user?.email || "",
+        location: profile.location || user?.location || "India",
+        identity: {
+          documentType: type,
+          documentNumber: number,
+        },
+        status: "pending",
+        verificationStatus: "pending",
+        submittedAt: new Date().toISOString(),
+      };
+
+      try {
+        const existing = JSON.parse(
+          localStorage.getItem(VERIFICATION_KEY) || "[]",
+        );
+
+        const requests = Array.isArray(existing) ? existing : [];
+        const existingIndex = requests.findIndex(
+          (item) =>
+            item.userId === request.userId || item.phone === request.phone,
+        );
+
+        if (existingIndex >= 0) {
+          requests[existingIndex] = {
+            ...requests[existingIndex],
+            ...request,
+            id: requests[existingIndex].id || request.id,
+          };
+        } else {
+          requests.push(request);
+        }
+
+        localStorage.setItem(VERIFICATION_KEY, JSON.stringify(requests));
+        setVerification(request);
+        setIdentityError("");
+        setActiveModal(null);
+
+        window.dispatchEvent(
+          new CustomEvent("bf-verification-submitted", {
+            detail: request,
+          }),
+        );
+      } catch (error) {
+        console.error("Verification submission failed", error);
+        setIdentityError("Unable to submit verification. Please try again.");
+      }
+      return;
+    }
+
+    // Existing buyer verification flow
     const request = {
       id: `VER-${Date.now()}`,
       userId: user?.id || `buyer-${Date.now()}`,
-
       type: "buyer",
-
       name: profile.name || user?.name || "",
-
       phone: profile.phone || user?.phone || "",
-
       email: profile.email || user?.email || "",
-
       businessName: businessDetails.businessName || profile.companyName || "",
-
       companyName: businessDetails.businessName || profile.companyName || "",
-
       businessType: businessDetails.businessType,
-
       location: profile.location || user?.location || "India",
-
       address: businessDetails.address,
-
       pan: businessDetails.pan,
-
       gstin: businessDetails.gstin,
-
       documents: {
         pan: documents.pan,
         gst: documents.gst,
         businessProof: documents.businessProof,
         bankProof: documents.bankProof,
       },
-
       bankAccount: paymentDetails.accountNumber ? "Submitted" : "",
-
       status: "pending",
-
       verificationStatus: "pending",
-
       submittedAt: new Date().toISOString(),
     };
 
@@ -447,9 +525,7 @@ export default function SettingsPage({ onLogout, user }) {
       const existing = JSON.parse(
         localStorage.getItem(VERIFICATION_KEY) || "[]",
       );
-
       const requests = Array.isArray(existing) ? existing : [];
-
       const existingIndex = requests.findIndex(
         (item) =>
           item.userId === request.userId || item.phone === request.phone,
@@ -466,7 +542,6 @@ export default function SettingsPage({ onLogout, user }) {
       }
 
       localStorage.setItem(VERIFICATION_KEY, JSON.stringify(requests));
-
       setVerification(request);
 
       window.dispatchEvent(
@@ -480,17 +555,17 @@ export default function SettingsPage({ onLogout, user }) {
       console.error("Verification submission failed", error);
     }
   };
-
   // ==========================================================
   // VERIFICATION STATUS
   // ==========================================================
 
   const verificationStatus =
-    verification?.status || verification?.verificationStatus || "pending";
+    verification?.status || verification?.verificationStatus || "not_submitted";
 
   const isVerified = verificationStatus === "approved";
 
-  const isVerificationPending = verificationStatus === "pending";
+  const isVerificationPending =
+    verificationStatus === "pending" || verificationStatus === "under_review";
 
   // ==========================================================
   // MODAL CLOSE
@@ -558,7 +633,7 @@ export default function SettingsPage({ onLogout, user }) {
             <div className="p-5">
               <div className="flex items-center gap-4">
                 <div className="w-20 h-20 rounded-2xl bg-green-50 border border-green-100 flex items-center justify-center shrink-0">
-                  <RoleIcon
+                  <UserRound
                     size={38}
                     strokeWidth={1.8}
                     className={roleInfo.color}
@@ -789,13 +864,54 @@ export default function SettingsPage({ onLogout, user }) {
 
                 <InfoRow
                   label="Identity Verification"
-                  value="Government identity verification"
+                  value={
+                    verificationStatus === "approved"
+                      ? "Government identity verified"
+                      : verificationStatus === "pending" ||
+                          verificationStatus === "under_review"
+                        ? "Verification submitted for review"
+                        : verificationStatus === "rejected"
+                          ? "Verification rejected — update and resubmit"
+                          : "Not submitted"
+                  }
                   right={
-                    <span className="text-xs font-semibold text-amber-600">
-                      Pending
-                    </span>
+                    verificationStatus === "approved" ? (
+                      <span className="text-xs font-semibold text-green-600">
+                        ✓ Verified
+                      </span>
+                    ) : verificationStatus === "pending" ||
+                      verificationStatus === "under_review" ? (
+                      <span className="text-xs font-semibold text-amber-600">
+                        Pending
+                      </span>
+                    ) : verificationStatus === "rejected" ? (
+                      <span className="text-xs font-semibold text-red-600">
+                        Rejected
+                      </span>
+                    ) : (
+                      <span className="text-xs font-semibold text-gray-500">
+                        Not Submitted
+                      </span>
+                    )
                   }
                 />
+
+                {verificationStatus !== "approved" && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIdentityError("");
+                      setActiveModal("verification");
+                    }}
+                    className="w-full py-2.5 rounded-lg bg-green-600 text-white text-sm font-semibold hover:bg-green-700 transition"
+                  >
+                    {isVerificationPending
+                      ? "View Verification"
+                      : verificationStatus === "rejected"
+                        ? "Resubmit Verification"
+                        : "Start Verification"}
+                  </button>
+                )}
 
                 <InfoRow
                   label="Bank Verification"
@@ -1380,72 +1496,165 @@ export default function SettingsPage({ onLogout, user }) {
 
       {activeModal === "verification" && (
         <Modal
-          title="Buyer Verification"
-          subtitle="Submit your business information for admin review."
+          title={isBuyer ? "Buyer Verification" : "Identity Verification"}
+          subtitle={
+            isBuyer
+              ? "Submit your business information for admin review."
+              : "Verify your identity to build trust on Bharat Fasal."
+          }
           onClose={closeModal}
         >
-          <div className="space-y-4">
-            <div className="p-4 rounded-xl bg-blue-50 border border-blue-100">
-              <div className="flex items-start gap-3">
-                <FileCheck size={20} className="text-blue-600 mt-0.5" />
-
-                <div>
-                  <p className="text-sm font-semibold text-gray-900">
-                    What will be submitted?
-                  </p>
-
-                  <p className="text-xs text-gray-600 mt-1 leading-5">
-                    Your contact information, business details, PAN, GSTIN,
-                    document readiness and payment details will be sent to the
-                    Admin verification queue.
-                  </p>
+          {isBuyer ? (
+            <div className="space-y-4">
+              <div className="p-4 rounded-xl bg-blue-50 border border-blue-100">
+                <div className="flex items-start gap-3">
+                  <FileCheck size={20} className="text-blue-600 mt-0.5" />
+                  <div>
+                    <p className="text-sm font-semibold text-gray-900">
+                      What will be submitted?
+                    </p>
+                    <p className="text-xs text-gray-600 mt-1 leading-5">
+                      Your contact information, business details, PAN, GSTIN,
+                      document readiness and payment details will be sent to the
+                      Admin verification queue.
+                    </p>
+                  </div>
                 </div>
               </div>
+
+              <ReviewValue
+                label="Business"
+                value={businessDetails.businessName || "Not provided"}
+              />
+              <ReviewValue
+                label="Contact Person"
+                value={profile.name || "Not provided"}
+              />
+              <ReviewValue
+                label="PAN"
+                value={businessDetails.pan || "Not provided"}
+              />
+              <ReviewValue
+                label="GSTIN"
+                value={businessDetails.gstin || "Not provided"}
+              />
+              <ReviewValue
+                label="Documents"
+                value={
+                  [
+                    documents.pan && "PAN",
+                    documents.gst && "GST",
+                    documents.businessProof && "Business Proof",
+                    documents.bankProof && "Bank Proof",
+                  ]
+                    .filter(Boolean)
+                    .join(", ") || "No documents marked"
+                }
+              />
+
+              <button
+                type="button"
+                onClick={submitVerification}
+                className="w-full py-3 rounded-lg bg-green-600 hover:bg-green-700 text-white text-sm font-semibold flex items-center justify-center gap-2"
+              >
+                <ShieldCheck size={17} />
+                Submit for Admin Verification
+              </button>
             </div>
+          ) : (
+            <div className="space-y-5">
+              <div className="p-4 rounded-xl bg-green-50 border border-green-100">
+                <div className="flex items-start gap-3">
+                  <ShieldCheck size={21} className="text-green-600 mt-0.5" />
+                  <div>
+                    <p className="text-sm font-semibold text-gray-900">
+                      Government ID verification
+                    </p>
+                    <p className="text-xs text-gray-600 mt-1 leading-5">
+                      Enter your document details. We will validate the format
+                      first and send the submission for verification review.
+                    </p>
+                  </div>
+                </div>
+              </div>
 
-            <ReviewValue
-              label="Business"
-              value={businessDetails.businessName || "Not provided"}
-            />
+              <div>
+                <label className="text-xs font-semibold text-gray-700">
+                  Document Type
+                </label>
+                <select
+                  value={identityDetails.documentType}
+                  onChange={(e) => {
+                    setIdentityDetails((prev) => ({
+                      ...prev,
+                      documentType: e.target.value,
+                    }));
+                    setIdentityError("");
+                  }}
+                  className="w-full mt-1.5 h-11 px-3 rounded-lg border border-gray-200 bg-white text-sm text-gray-800 outline-none focus:border-green-500 focus:ring-2 focus:ring-green-100"
+                >
+                  <option value="">Select document type</option>
+                  <option value="aadhaar">Aadhaar Card</option>
+                  <option value="voter">Voter ID</option>
+                  <option value="driving">Driving Licence</option>
+                  <option value="pan">PAN Card</option>
+                </select>
+              </div>
 
-            <ReviewValue
-              label="Contact Person"
-              value={profile.name || "Not provided"}
-            />
+              <div>
+                <label className="text-xs font-semibold text-gray-700">
+                  Document Number
+                </label>
+                <input
+                  type="text"
+                  value={identityDetails.documentNumber}
+                  onChange={(e) => {
+                    setIdentityDetails((prev) => ({
+                      ...prev,
+                      documentNumber: e.target.value.toUpperCase(),
+                    }));
+                    setIdentityError("");
+                  }}
+                  placeholder={
+                    identityDetails.documentType === "aadhaar"
+                      ? "Enter 12-digit Aadhaar number"
+                      : identityDetails.documentType === "pan"
+                        ? "Enter PAN (e.g. ABCDE1234F)"
+                        : "Enter document number"
+                  }
+                  className={`w-full mt-1.5 h-11 px-3 rounded-lg border bg-white text-sm text-gray-800 outline-none focus:ring-2 ${
+                    identityError
+                      ? "border-red-300 focus:border-red-500 focus:ring-red-100"
+                      : "border-gray-200 focus:border-green-500 focus:ring-green-100"
+                  }`}
+                />
+                {identityError && (
+                  <p className="text-xs text-red-600 mt-1.5">{identityError}</p>
+                )}
+              </div>
 
-            <ReviewValue
-              label="PAN"
-              value={businessDetails.pan || "Not provided"}
-            />
+              <div className="flex items-start gap-2 p-3 rounded-lg bg-gray-50 border border-gray-200">
+                <AlertCircle
+                  size={15}
+                  className="text-gray-500 shrink-0 mt-0.5"
+                />
+                <p className="text-xs text-gray-500 leading-5">
+                  Format validation happens before submission. Actual identity
+                  verification requires an authorized verification service or
+                  admin review.
+                </p>
+              </div>
 
-            <ReviewValue
-              label="GSTIN"
-              value={businessDetails.gstin || "Not provided"}
-            />
-
-            <ReviewValue
-              label="Documents"
-              value={
-                [
-                  documents.pan && "PAN",
-                  documents.gst && "GST",
-                  documents.businessProof && "Business Proof",
-                  documents.bankProof && "Bank Proof",
-                ]
-                  .filter(Boolean)
-                  .join(", ") || "No documents marked"
-              }
-            />
-
-            <button
-              type="button"
-              onClick={submitVerification}
-              className="w-full py-3 rounded-lg bg-green-600 hover:bg-green-700 text-white text-sm font-semibold flex items-center justify-center gap-2"
-            >
-              <ShieldCheck size={17} />
-              Submit for Admin Verification
-            </button>
-          </div>
+              <button
+                type="button"
+                onClick={submitVerification}
+                className="w-full py-3 rounded-lg bg-green-600 hover:bg-green-700 text-white text-sm font-semibold flex items-center justify-center gap-2 transition"
+              >
+                <ShieldCheck size={17} />
+                Submit for Verification
+              </button>
+            </div>
+          )}
         </Modal>
       )}
 

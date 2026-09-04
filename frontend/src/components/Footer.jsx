@@ -1,4 +1,4 @@
-import { Sprout, ArrowRight } from "lucide-react";
+import { ArrowRight } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 
 export default function Footer() {
@@ -6,16 +6,13 @@ export default function Footer() {
 
   return (
     <footer className="mt-12 bg-[#1f2b3a] text-white">
-
       {/* Green top border */}
       <div className="h-1 bg-green-500" />
 
       <div className="max-w-7xl mx-auto px-6 sm:px-8 lg:px-8">
-
         {/* ================================
             MAIN FOOTER
             ================================ */}
-
         <div
           className="
             grid
@@ -27,13 +24,10 @@ export default function Footer() {
             py-12
           "
         >
-
           {/* ================================
               BRAND
               ================================ */}
-
           <div>
-
             <div
               className="
                 flex
@@ -42,11 +36,16 @@ export default function Footer() {
                 mb-5
               "
             >
-
-              <Sprout
-                size={34}
-                strokeWidth={2}
-                className="text-green-400"
+              <img
+                src="/images/bharat-fasal-logo.png"
+                alt="Bharat Fasal"
+                className="
+                  w-11
+                  h-11
+                  sm:w-12
+                  sm:h-12
+                  object-contain
+                "
               />
 
               <h2
@@ -59,7 +58,6 @@ export default function Footer() {
               >
                 BHARAT FASAL
               </h2>
-
             </div>
 
             <p
@@ -71,19 +69,14 @@ export default function Footer() {
                 max-w-xs
               "
             >
-              Better Markets. Better Decisions.
-              Better Returns.
+              Better Markets. Better Decisions. Better Returns.
             </p>
-
           </div>
-
 
           {/* ================================
               PRODUCT
               ================================ */}
-
           <div>
-
             <h3
               className="
                 text-sm
@@ -98,11 +91,8 @@ export default function Footer() {
             </h3>
 
             <div className="space-y-4">
-
               <button
-                onClick={() =>
-                  navigate("/market-intelligence")
-                }
+                onClick={() => navigate("/market-intelligence")}
                 className="
                   block
                   text-sm
@@ -116,9 +106,7 @@ export default function Footer() {
               </button>
 
               <button
-                onClick={() =>
-                  navigate("/buyers")
-                }
+                onClick={() => navigate("/buyers")}
                 className="
                   block
                   text-sm
@@ -132,9 +120,7 @@ export default function Footer() {
               </button>
 
               <button
-                onClick={() =>
-                  navigate("/logistics")
-                }
+                onClick={() => navigate("/logistics")}
                 className="
                   block
                   text-sm
@@ -148,9 +134,7 @@ export default function Footer() {
               </button>
 
               <button
-                onClick={() =>
-                  navigate("/payments")
-                }
+                onClick={() => navigate("/payments")}
                 className="
                   block
                   text-sm
@@ -162,18 +146,13 @@ export default function Footer() {
               >
                 Payments
               </button>
-
             </div>
-
           </div>
-
 
           {/* ================================
               COMPANY
               ================================ */}
-
           <div>
-
             <h3
               className="
                 text-sm
@@ -188,11 +167,8 @@ export default function Footer() {
             </h3>
 
             <div className="space-y-4">
-
               <button
-                onClick={() =>
-                  navigate("/about")
-                }
+                onClick={() => navigate("/about")}
                 className="
                   block
                   text-sm
@@ -206,9 +182,7 @@ export default function Footer() {
               </button>
 
               <button
-                onClick={() =>
-                  navigate("/contact")
-                }
+                onClick={() => navigate("/contact")}
                 className="
                   block
                   text-sm
@@ -222,9 +196,7 @@ export default function Footer() {
               </button>
 
               <button
-                onClick={() =>
-                  navigate("/help")
-                }
+                onClick={() => navigate("/help")}
                 className="
                   block
                   text-sm
@@ -236,18 +208,13 @@ export default function Footer() {
               >
                 Help Center
               </button>
-
             </div>
-
           </div>
-
 
           {/* ================================
               LEGAL
               ================================ */}
-
           <div>
-
             <h3
               className="
                 text-sm
@@ -262,11 +229,8 @@ export default function Footer() {
             </h3>
 
             <div className="space-y-4">
-
               <button
-                onClick={() =>
-                  navigate("/privacy")
-                }
+                onClick={() => navigate("/privacy")}
                 className="
                   block
                   text-sm
@@ -280,9 +244,7 @@ export default function Footer() {
               </button>
 
               <button
-                onClick={() =>
-                  navigate("/terms")
-                }
+                onClick={() => navigate("/terms")}
                 className="
                   block
                   text-sm
@@ -296,9 +258,7 @@ export default function Footer() {
               </button>
 
               <button
-                onClick={() =>
-                  navigate("/grievance")
-                }
+                onClick={() => navigate("/grievance")}
                 className="
                   block
                   text-sm
@@ -310,18 +270,13 @@ export default function Footer() {
               >
                 Grievance
               </button>
-
             </div>
-
           </div>
-
         </div>
-
 
         {/* ================================
             BOTTOM
             ================================ */}
-
         <div
           className="
             border-t
@@ -335,7 +290,6 @@ export default function Footer() {
             gap-3
           "
         >
-
           <p
             className="
               text-sm
@@ -355,11 +309,8 @@ export default function Footer() {
           >
             Empowering farmers with better markets 🌾
           </p>
-
         </div>
-
       </div>
-
     </footer>
   );
 }

@@ -168,5 +168,28 @@
   "bajra": "Bajra (Pearl Millet)",
   "jowar": "Jowar (Sorghum)",
   "turmeric": "Haldi (Turmeric)",
-  "groundnut": "Moongfali (Groundnut)"
+  "groundnut": "Moongfali (Groundnut)",
+  "why_bharat_fasal": "Why Bharat Fasal",
+"making_agricultural_trade_simpler": "Agricultural Trade ko Simple Banana",
+"why_bharat_fasal_description": "Bharat Fasal important market information aur agricultural trade activities ko ek jagah laata hai, jisse users better decisions le saken.",
+
+"more_transparent": "More Transparent",
+"more_transparent_text": "Selling decision lene se pehle clear market aur buyer information dekhein.",
+"better_market_access": "Better Market Access",
+"better_market_access_text": "Apne local network ke bahar aur buyers aur market opportunities find karein.",
+"direct_connections": "Direct Connections",
+"direct_connections_text": "Farmers, FPOs aur buyers ko ek digital platform par connect karein.",
+"simple_organized": "Simple & Organized",
+"simple_organized_text": "Produce listings, deals, payments aur delivery information ko organized rakhein.",
+
+"one_platform": "One Platform",
+"built_for_everyone_agriculture": "Agriculture se jude Everyone ke liye",
+"built_for_everyone_agriculture_description": "Chahe aap produce grow, aggregate ya buy karte ho, Bharat Fasal aapko right opportunities se connect karne mein help karta hai.",
+
+"farmers": "Farmers",
+"farmers_description": "Market prices check karein, apna produce list karein aur verified buyers se connect karein.",
+"fpos": "FPOs",
+"fpos_description": "Farmer produce manage karein, quantities aggregate karein aur better market opportunities find karein.",
+"buyers": "Buyers",
+"buyers_description": "Available produce discover karein aur farmers aur FPOs se directly connect karein."
 }
