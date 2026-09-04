@@ -2,18 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 
-import {
-  MapPin,
-  TrendingUp,
-  TrendingDown,
-  Minus,
-  Newspaper,
-  Package,
-  Truck,
-  ArrowRight,
-  Users,
-  WalletCards,
-} from "lucide-react";
+import { MapPin, TrendingUp, TrendingDown, Minus, Newspaper, Package, Truck, ArrowRight, Users, WalletCards, } from "lucide-react";
 
 import MarketTicker from "../components/MarketTicker";
 import StatCard from "../components/StatCard";
@@ -21,10 +10,8 @@ import PriceCard from "../components/PriceCard";
 
 import { priceAlerts } from "../data/mockPrices";
 import { getGreeting, formatCurrency } from "../utils/formatters";
-
-// =====================================================
-// HERO IMAGES
-// =====================================================
+import { api } from "../utils/api.js";
+// hero images for the dashboard slider
 
 const HERO_IMAGES = [
   "/images/hero/farmer1.jpg",
@@ -34,9 +21,7 @@ const HERO_IMAGES = [
   "/images/hero/farmer5.jpg",
 ];
 
-// =====================================================
-// DEMO ACTIVE LOTS
-// =====================================================
+// demo active lots for the dashboard (replace with real data in production)
 
 const activeLots = [
   {
@@ -71,9 +56,7 @@ const activeLots = [
   },
 ];
 
-// =====================================================
-// DASHBOARD PAGE
-// =====================================================
+// dashboard page component that displays hero slider, stats, quick actions, active lots, top prices, price alerts, and market news
 
 export default function DashboardPage({ user }) {
   const { t } = useTranslation();
@@ -87,9 +70,9 @@ export default function DashboardPage({ user }) {
   const currentUser = user;
   const greeting = getGreeting();
 
-  // =====================================================
+  
   // HERO AUTO SLIDER
-  // =====================================================
+
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -99,111 +82,72 @@ export default function DashboardPage({ user }) {
     return () => clearInterval(timer);
   }, []);
 
-  // =====================================================
-  // FETCH MANDI PRICES
-  // =====================================================
+ // fetch mandi prices from the API and update the topPrices state
+// fetch mandi prices
+useEffect(() => {
+  const fetchMandiPrices = async () => {
+    try {
+      const data = await api.getMandiPrices();
 
-  useEffect(() => {
-    const fetchMandiPrices = async () => {
-      try {
-        const response = await fetch("http://localhost:5000/api/mandi-prices");
-
-        if (!response.ok) {
-          throw new Error(`Mandi API error: ${response.status}`);
-        }
-
-        const data = await response.json();
-
-        if (!data.records || !Array.isArray(data.records)) {
-          console.warn("No mandi records found");
-          return;
-        }
-
-        const records = data.records
-          .map((item) => {
-            const commodity = item.commodity || item.Commodity || "";
-
-            const market = item.market || item.Market || "";
-
-            const state = item.state || item.State || "";
-
-            const minPrice = Number(item.min_price || item.Min_Price || 0);
-
-            const maxPrice = Number(item.max_price || item.Max_Price || 0);
-
-            const modalPrice = Number(
-              item.modal_price || item.Modal_Price || 0,
-            );
-
-            return {
-              ...item,
-              commodity,
-              market,
-              state,
-              min_price: minPrice,
-              max_price: maxPrice,
-              modal_price: modalPrice,
-            };
-          })
-          .filter((item) => item.commodity && item.modal_price > 0);
-
-        // =================================================
-        // CALCULATE PRICE CHANGE
-        // =================================================
-
-        const updatedRecords = records.map((item) => {
-          const key = `${item.commodity}-${item.market}`.toLowerCase();
-
-          const previousPrice = previousPricesRef.current[key];
-
-          let change = 0;
-
-          if (previousPrice && previousPrice > 0) {
-            change = ((item.modal_price - previousPrice) / previousPrice) * 100;
-          }
-
-          return {
-            ...item,
-            change,
-          };
-        });
-
-        // =================================================
-        // SAVE CURRENT PRICES
-        // =================================================
-
-        const currentPrices = {};
-
-        updatedRecords.forEach((item) => {
-          const key = `${item.commodity}-${item.market}`.toLowerCase();
-
-          currentPrices[key] = item.modal_price;
-        });
-
-        previousPricesRef.current = currentPrices;
-
-        // =================================================
-        // SHOW LATEST 6 PRICES
-        // =================================================
-
-        setTopPrices(updatedRecords.slice(0, 6));
-      } catch (error) {
-        console.error("Mandi price fetch error:", error);
+      if (!Array.isArray(data?.records)) {
+        console.warn("No mandi records found");
+        return;
       }
-    };
 
-    fetchMandiPrices();
+      // calculate price changes
+      const updatedRecords = data.records.map((item) => {
+        const key =
+          `${item.commodity}-${item.market}`.toLowerCase();
 
-    const interval = setInterval(fetchMandiPrices, 5 * 60 * 1000);
+        const previousPrice =
+          previousPricesRef.current[key];
 
-    return () => {
-      clearInterval(interval);
-    };
-  }, []);
+        let change = 0;
 
-  // =====================================================
+        if (previousPrice > 0) {
+          change =
+            ((item.modal_price - previousPrice) /
+              previousPrice) *
+            100;
+        }
+
+        return {
+          ...item,
+          change,
+        };
+      });
+
+      // save current prices
+      const currentPrices = {};
+
+      updatedRecords.forEach((item) => {
+        const key =
+          `${item.commodity}-${item.market}`.toLowerCase();
+
+        currentPrices[key] = item.modal_price;
+      });
+
+      previousPricesRef.current = currentPrices;
+
+      // show latest six prices
+      setTopPrices(updatedRecords.slice(0, 6));
+    } catch (error) {
+      console.error("Mandi price fetch error:", error);
+    }
+  };
+
+  fetchMandiPrices();
+
+  const interval = setInterval(
+    fetchMandiPrices,
+    5 * 60 * 1000
+  );
+
+  return () => clearInterval(interval);
+}, []);
+
   // SLIDER CONTROLS
-  // =====================================================
+  
 
   const nextSlide = () => {
     setHeroSlide((prev) => (prev + 1) % HERO_IMAGES.length);
@@ -215,38 +159,34 @@ export default function DashboardPage({ user }) {
     );
   };
 
-  // =====================================================
+  
   // QUICK ACTIONS
-  // =====================================================
-
+  
   const quickActions = [
-  {
-    image: "/images/actions/new-lot.jpg",
-    label: "New Lot",
-    path: "/lots",
-  },
-  {
-    image: "/images/actions/find-buyer.jpg",
-    label: "Find Buyer",
-    path: "/buyers",
-  },
-  {
-    image: "/images/actions/customer-complaint.jpg",
-    label: "Complaint",
-    path: "/disputes",
-  },
-  {
-    image: "/images/actions/payment.jpg",
-    label: "Track Payment",
-    path: "/payments",
-  },
-];
+    {
+      image: "/images/actions/new-lot.jpg",
+      label: "New Lot",
+      path: "/lots",
+    },
+    {
+      image: "/images/actions/find-buyer.jpg",
+      label: "Find Buyer",
+      path: "/buyers",
+    },
+    {
+      image: "/images/actions/customer-complaint.jpg",
+      label: "Complaint",
+      path: "/disputes",
+    },
+    {
+      image: "/images/actions/payment.jpg",
+      label: "Track Payment",
+      path: "/payments",
+    },
+  ];
   return (
     <div className="w-full">
-      {/* =====================================================
-          HERO SLIDER
-          ===================================================== */}
-
+      {/* Hero slider */}
       <section
         className="
           relative
@@ -472,10 +412,9 @@ export default function DashboardPage({ user }) {
                 rounded-full
                 transition-all
                 duration-300
-                ${
-                  index === heroSlide
-                    ? "w-8 bg-white"
-                    : "w-2 bg-white/50 hover:bg-white/80"
+                ${index === heroSlide
+                  ? "w-8 bg-white"
+                  : "w-2 bg-white/50 hover:bg-white/80"
                 }
               `}
             />
@@ -483,9 +422,7 @@ export default function DashboardPage({ user }) {
         </div>
       </section>
 
-      {/* =====================================================
-          MAIN DASHBOARD CONTENT
-          ===================================================== */}
+      {/* MAIN DASHBOARD CONTENT*/}
 
       <div
         className="
@@ -500,15 +437,11 @@ export default function DashboardPage({ user }) {
           pb-10
         "
       >
-        {/* =====================================================
-            MARKET TICKER
-            ===================================================== */}
+        {/* MARKET TICKER */}
 
         <MarketTicker />
 
-        {/* =====================================================
-            STATS
-            ===================================================== */}
+        {/* STATS */}
 
         <div
           className="
@@ -547,9 +480,7 @@ export default function DashboardPage({ user }) {
           />
         </div>
 
-        {/* =====================================================
-            QUICK ACTIONS
-            ===================================================== */}
+        {/* QUICK ACTIONS*/}
 
         <section>
           <div className="flex items-center justify-between mb-3">
@@ -634,9 +565,7 @@ export default function DashboardPage({ user }) {
           </div>
         </section>
 
-        {/* =====================================================
-            YOUR ACTIVE LOTS
-            ===================================================== */}
+        {/* YOUR ACTIVE LOTS*/}
 
         <section>
           <div
@@ -839,9 +768,7 @@ export default function DashboardPage({ user }) {
           </div>
         </section>
 
-        {/* =====================================================
-            TOP PRICES
-            ===================================================== */}
+        {/* TOP PRICES*/}
 
         <section>
           <div
@@ -919,9 +846,7 @@ export default function DashboardPage({ user }) {
           )}
         </section>
 
-        {/* =====================================================
-            PRICE ALERTS
-            ===================================================== */}
+        {/* PRICE ALERTS*/}
 
         <section>
           <div className="mb-3">
@@ -986,9 +911,7 @@ export default function DashboardPage({ user }) {
           </div>
         </section>
 
-        {/* =====================================================
-            MARKET NEWS
-            ===================================================== */}
+        {/* MARKET NEWS */}
 
         <section>
           <div className="mb-3">
@@ -1109,9 +1032,7 @@ export default function DashboardPage({ user }) {
           </div>
         </section>
 
-        {/* =====================================================
-            SELLER TRUST MESSAGE
-            ===================================================== */}
+        {/* SELLER TRUST MESSAGE */}
 
         <section
           className="
@@ -1145,9 +1066,7 @@ export default function DashboardPage({ user }) {
                   flex
                   items-center
                   justify-center
-                  shrink-0
-                "
-              >
+                  shrink-0" >
                 <WalletCards size={19} className="text-green-600" />
               </div>
 
@@ -1165,22 +1084,7 @@ export default function DashboardPage({ user }) {
             <button
               type="button"
               onClick={() => navigate("/payments")}
-              className="
-                inline-flex
-                items-center
-                justify-center
-                gap-1.5
-                px-4
-                py-2.5
-                rounded-xl
-                bg-gray-900
-                text-white
-                text-sm
-                font-semibold
-                hover:bg-gray-800
-                transition-colors
-              "
-            >
+              className=" inline-flex items-center justify- gap-1.5px-4 py-2.5 rounded-xl bg-gray-900 text-white text-sm font-semibold hover:bg-gray-800 transition-colors ">
               View Payments
               <ArrowRight size={15} />
             </button>

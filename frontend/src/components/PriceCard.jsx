@@ -1,13 +1,9 @@
 import { useEffect, useState } from "react";
-import {
-  TrendingUp,
-  TrendingDown,
-  Minus,
-} from "lucide-react";
+import {TrendingUp,TrendingDown,Minus,} from "lucide-react";
+import { api } from "../utils/api.js";
 
-// ==========================================
+
 // LOCAL IMAGES FOR COMMON CROPS
-// ==========================================
 
 const localCropImages = {
   wheat: "/images/crops/wheat.jpg",
@@ -28,17 +24,11 @@ const localCropImages = {
   soyabean: "/images/crops/default.jpg",
 };
 
-
-// ==========================================
 // PRICE CARD
-// ==========================================
 
 export default function PriceCard({ price }) {
 
-  // ========================================
   // COMMODITY
-  // ========================================
-
   const commodity =
     price?.commodity ||
     price?.Commodity ||
@@ -46,11 +36,7 @@ export default function PriceCard({ price }) {
     price?.Crop ||
     "Crop";
 
-
-  // ========================================
   // MARKET
-  // ========================================
-
   const market =
     price?.market ||
     price?.Market ||
@@ -58,10 +44,7 @@ export default function PriceCard({ price }) {
     price?.Market_Name ||
     "";
 
-
-  // ========================================
   // STATE
-  // ========================================
 
   const state =
     price?.state ||
@@ -69,48 +52,35 @@ export default function PriceCard({ price }) {
     "";
 
 
-  // ========================================
   // PRICE
-  // ========================================
-
   const modalPrice = Number(
     price?.modal_price ||
-      price?.Modal_Price ||
-      price?.modalPrice ||
-      price?.price ||
-      price?.Price ||
-      0
+    price?.Modal_Price ||
+    price?.modalPrice ||
+    price?.price ||
+    price?.Price ||
+    0
   );
 
-
-  // ========================================
   // MIN PRICE
-  // ========================================
-
   const minPrice = Number(
     price?.min_price ||
-      price?.Min_Price ||
-      price?.minPrice ||
-      0
+    price?.Min_Price ||
+    price?.minPrice ||
+    0
   );
 
-
-  // ========================================
   // MAX PRICE
-  // ========================================
+
 
   const maxPrice = Number(
     price?.max_price ||
-      price?.Max_Price ||
-      price?.maxPrice ||
-      0
+    price?.Max_Price ||
+    price?.maxPrice ||
+    0
   );
 
-
-  // ========================================
   // PRICE CHANGE
-  // ========================================
-
   const change = Number(
     price?.change || 0
   );
@@ -120,13 +90,12 @@ export default function PriceCard({ price }) {
     change > 0
       ? TrendingUp
       : change < 0
-      ? TrendingDown
-      : Minus;
+        ? TrendingDown
+        : Minus;
 
 
-  // ========================================
+  
   // NORMALIZE CROP NAME
-  // ========================================
 
   const commodityKey = String(
     commodity || ""
@@ -135,39 +104,36 @@ export default function PriceCard({ price }) {
     .trim();
 
 
-  // ========================================
   // CHECK LOCAL IMAGE
-  // ========================================
+  
 
   const localImage =
     localCropImages[commodityKey] || null;
 
 
-  // ========================================
+ 
   // IMAGE STATE
-  // ========================================
+  
 
   const [image, setImage] = useState(
     localImage ||
-      "/images/crops/default.jpg"
+    "/images/crops/default.jpg"
   );
 
   const [imageLoading, setImageLoading] =
     useState(!localImage);
 
 
-  // ========================================
   // IMAGE LOADING
-  // ========================================
+
 
   useEffect(() => {
 
     let cancelled = false;
 
 
-    // ----------------------------------------
     // COMMON CROP
-    // ----------------------------------------
+    
 
     if (localImage) {
 
@@ -178,83 +144,41 @@ export default function PriceCard({ price }) {
     }
 
 
-    // ----------------------------------------
+    
     // UNKNOWN CROP
     // USE DYNAMIC API
-    // ----------------------------------------
+    
+const fetchCropImage = async () => {
+  try {
+    setImageLoading(true);
 
-    const fetchCropImage = async () => {
+    // fetch crop image through centralized API utility
+    const data = await api.getCropImage(commodity);
 
-      try {
+    if (
+      !cancelled &&
+      data?.success &&
+      data?.image
+    ) {
+      setImage(data.image);
+    } else if (!cancelled) {
+      setImage("/images/crops/default.jpg");
+    }
+  } catch (error) {
+    console.error(
+      `Image loading failed for ${commodity}:`,
+      error
+    );
 
-        setImageLoading(true);
-
-        const response = await fetch(
-          `http://localhost:5000/api/crop-image?crop=${encodeURIComponent(
-            commodity
-          )}`
-        );
-
-
-        if (!response.ok) {
-          throw new Error(
-            `Image API error: ${response.status}`
-          );
-        }
-
-
-        const data =
-          await response.json();
-
-
-        console.log(
-          "Dynamic crop image:",
-          commodity,
-          data
-        );
-
-
-        if (
-          !cancelled &&
-          data?.success &&
-          data?.image
-        ) {
-
-          setImage(data.image);
-
-        } else if (!cancelled) {
-
-          setImage(
-            "/images/crops/default.jpg"
-          );
-
-        }
-
-      } catch (error) {
-
-        console.error(
-          `Image loading failed for ${commodity}:`,
-          error
-        );
-
-
-        if (!cancelled) {
-
-          setImage(
-            "/images/crops/default.jpg"
-          );
-
-        }
-
-      } finally {
-
-        if (!cancelled) {
-          setImageLoading(false);
-        }
-
-      }
-    };
-
+    if (!cancelled) {
+      setImage("/images/crops/default.jpg");
+    }
+  } finally {
+    if (!cancelled) {
+      setImageLoading(false);
+    }
+  }
+};
 
     if (
       commodity &&
@@ -277,10 +201,7 @@ export default function PriceCard({ price }) {
   }, [commodity, localImage]);
 
 
-  // ========================================
-  // IMAGE ERROR
-  // ========================================
-
+  // IMAGE ERROR HANDLER
   const handleImageError = (event) => {
 
     // Prevent infinite error loop
@@ -292,9 +213,7 @@ export default function PriceCard({ price }) {
   };
 
 
-  // ========================================
   // UI
-  // ========================================
 
   return (
 
@@ -315,9 +234,7 @@ export default function PriceCard({ price }) {
       "
     >
 
-      {/* ====================================
-          CROP IMAGE
-          ==================================== */}
+      {/* CROP IMAGE */}
 
       <div
         className="
@@ -361,9 +278,7 @@ export default function PriceCard({ price }) {
       </div>
 
 
-      {/* ====================================
-          CARD CONTENT
-          ==================================== */}
+      {/* CARD CONTENT*/}
 
       <div className="p-4">
 
@@ -453,10 +368,9 @@ export default function PriceCard({ price }) {
                 gap-1
                 text-sm
                 font-semibold
-                ${
-                  change > 0
-                    ? "text-green-600"
-                    : "text-red-500"
+                ${change > 0
+                  ? "text-green-600"
+                  : "text-red-500"
                 }
               `}
             >
@@ -479,8 +393,8 @@ export default function PriceCard({ price }) {
         {(minPrice > 0 ||
           maxPrice > 0) && (
 
-          <div
-            className="
+            <div
+              className="
               flex
               items-center
               justify-between
@@ -490,58 +404,58 @@ export default function PriceCard({ price }) {
               border-gray-100
               text-xs
             "
-          >
+            >
 
-            {/* MIN */}
+              {/* MIN */}
 
-            <div>
+              <div>
 
-              <span className="text-gray-400">
-                Min
-              </span>
+                <span className="text-gray-400">
+                  Min
+                </span>
 
-              <p
-                className="
+                <p
+                  className="
                   font-semibold
                   text-gray-700
                   mt-0.5
                 "
-              >
-                ₹
-                {minPrice.toLocaleString(
-                  "en-IN"
-                )}
-              </p>
+                >
+                  ₹
+                  {minPrice.toLocaleString(
+                    "en-IN"
+                  )}
+                </p>
 
-            </div>
+              </div>
 
 
-            {/* MAX */}
+              {/* MAX */}
 
-            <div className="text-right">
+              <div className="text-right">
 
-              <span className="text-gray-400">
-                Max
-              </span>
+                <span className="text-gray-400">
+                  Max
+                </span>
 
-              <p
-                className="
+                <p
+                  className="
                   font-semibold
                   text-gray-700
                   mt-0.5
                 "
-              >
-                ₹
-                {maxPrice.toLocaleString(
-                  "en-IN"
-                )}
-              </p>
+                >
+                  ₹
+                  {maxPrice.toLocaleString(
+                    "en-IN"
+                  )}
+                </p>
+
+              </div>
 
             </div>
 
-          </div>
-
-        )}
+          )}
 
       </div>
 

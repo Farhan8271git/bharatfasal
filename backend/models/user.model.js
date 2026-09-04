@@ -1,0 +1,80 @@
+import mongoose from "mongoose";
+
+const userSchema = new mongoose.Schema(
+  {
+    // account role
+    role: {
+      type: String,
+      enum: ["farmer", "fpo", "buyer"],
+      required: true,
+    },
+
+    // basic identity
+    name: {
+      type: String,
+      required: true,
+      trim: true,
+      minlength: 2,
+      maxlength: 100,
+    },
+
+    // primary mobile number
+    mobile: {
+      type: String,
+      required: true,
+      unique: true,
+      trim: true,
+    },
+
+    // optional email
+    email: {
+      type: String,
+      unique: true,
+      sparse: true,
+      lowercase: true,
+      trim: true,
+    },
+
+    // location
+    village: {
+      type: String,
+      required: true,
+      trim: true,
+      maxlength: 100,
+    },
+
+    district: {
+      type: String,
+      required: true,
+      trim: true,
+      maxlength: 100,
+    },
+
+    state: {
+      type: String,
+      required: true,
+      trim: true,
+      maxlength: 100,
+    },
+
+    // hashed password only
+    passwordHash: {
+      type: String,
+      required: true,
+    },
+
+    // registration consent
+    termsAccepted: {
+      type: Boolean,
+      required: true,
+      default: false,
+    },
+  },
+  {
+    timestamps: true,
+  }
+);
+
+const User = mongoose.model("User", userSchema);
+
+export default User;

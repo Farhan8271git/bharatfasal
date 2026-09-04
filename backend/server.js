@@ -1,19 +1,26 @@
 import express from "express";
 import cors from "cors";
 import dotenv from "dotenv";
+import mandiRoutes from "./routes/mandi.routes.js";
+import authRoutes from "./routes/auth.routes.js";
+import connectDB from "./config/db.js";
 
 dotenv.config();
 
 const app = express();
 const PORT = 5000;
 
+// MIDDLEWARE
+
 app.use(cors());
 app.use(express.json());
+app.use("/api/auth", authRoutes);
 
-// =====================================================
-// CACHE
-// =====================================================
 
+// ROUTES
+app.use("/api/mandi-prices", mandiRoutes);
+
+// Mandi API cache
 let mandiCache = null;
 let mandiCacheTime = 0;
 
@@ -22,9 +29,7 @@ const CACHE_DURATION = 10 * 60 * 1000;
 // Crop image cache
 const cropImageCache = new Map();
 
-// =====================================================
-// HELPER — CLEAN CROP NAME
-// =====================================================
+// HELPER - CLEAN CROP NAME
 
 function cleanCropName(crop) {
   return String(crop || "")
@@ -34,10 +39,7 @@ function cleanCropName(crop) {
     .trim()
     .toLowerCase();
 }
-
-// =====================================================
 // LOCAL CROP IMAGE MAP
-// =====================================================
 
 function getLocalCropImage(crop) {
   const name = cleanCropName(crop);
@@ -61,14 +63,13 @@ function getLocalCropImage(crop) {
   return "/images/crops/default.jpg";
 }
 
-// =====================================================
 // CROP IMAGE API
-// =====================================================
 
 app.get("/api/crop-image", async (req, res) => {
   try {
     const crop = String(req.query.crop || "").trim();
 
+    // validate crop name
     if (!crop) {
       return res.status(400).json({
         success: false,
@@ -78,9 +79,7 @@ app.get("/api/crop-image", async (req, res) => {
 
     const cacheKey = cleanCropName(crop);
 
-    // -----------------------------------------------
     // RETURN CACHED IMAGE
-    // -----------------------------------------------
 
     if (cropImageCache.has(cacheKey)) {
       return res.json({
@@ -91,9 +90,7 @@ app.get("/api/crop-image", async (req, res) => {
       });
     }
 
-    // -----------------------------------------------
     // CHECK LOCAL IMAGE FIRST
-    // -----------------------------------------------
 
     const localImage = getLocalCropImage(crop);
 
@@ -108,16 +105,13 @@ app.get("/api/crop-image", async (req, res) => {
       });
     }
 
-    // -----------------------------------------------
     // WIKIMEDIA COMMONS FALLBACK
-    // -----------------------------------------------
-
     const searchQuery = encodeURIComponent(
       `${crop} crop agriculture`
     );
 
     const wikiUrl =
-      `https://commons.wikimedia.org/w/api.php` +
+      "https://commons.wikimedia.org/w/api.php" +
       `?action=query` +
       `&generator=search` +
       `&gsrsearch=${searchQuery}` +
@@ -160,9 +154,7 @@ app.get("/api/crop-image", async (req, res) => {
       }
     }
 
-    // -----------------------------------------------
-    // FALLBACK
-    // -----------------------------------------------
+    // DEFAULT FALLBACK
 
     const fallback = "/images/crops/default.jpg";
 
@@ -186,15 +178,11 @@ app.get("/api/crop-image", async (req, res) => {
   }
 });
 
-// =====================================================
-// MANDI PRICES
-// =====================================================
+// MANDI PRICES API
 
 app.get("/api/mandi-prices", async (req, res) => {
   try {
-    // -----------------------------------------------
     // RETURN CACHE
-    // -----------------------------------------------
 
     if (
       mandiCache &&
@@ -205,6 +193,8 @@ app.get("/api/mandi-prices", async (req, res) => {
       return res.json(mandiCache);
     }
 
+    // CHECK API KEY
+
     const apiKey = process.env.DATA_GOV_API_KEY;
 
     if (!apiKey) {
@@ -214,9 +204,7 @@ app.get("/api/mandi-prices", async (req, res) => {
       });
     }
 
-    // -----------------------------------------------
     // GOVERNMENT API
-    // -----------------------------------------------
 
     const apiUrl =
       "https://api.data.gov.in/resource/9ef84268-d588-465a-a308-a864a43d0070" +
@@ -227,7 +215,6 @@ app.get("/api/mandi-prices", async (req, res) => {
     console.log("🌾 Calling Government Mandi API...");
 
     const response = await fetch(apiUrl);
-
     const text = await response.text();
 
     console.log(
@@ -235,9 +222,7 @@ app.get("/api/mandi-prices", async (req, res) => {
       response.status
     );
 
-    // -----------------------------------------------
-    // API ERROR
-    // -----------------------------------------------
+    // GOVERNMENT API ERROR
 
     if (!response.ok) {
       if (mandiCache) {
@@ -256,9 +241,7 @@ app.get("/api/mandi-prices", async (req, res) => {
       });
     }
 
-    // -----------------------------------------------
-    // PARSE RESPONSE
-    // -----------------------------------------------
+    // PARSE GOVERNMENT RESPONSE
 
     const data = JSON.parse(text);
 
@@ -268,9 +251,8 @@ app.get("/api/mandi-prices", async (req, res) => {
       );
     }
 
-    // -----------------------------------------------
-    // SAVE CACHE
-    // -----------------------------------------------
+
+    // SAVE DATA TO CACHE
 
     mandiCache = data;
     mandiCacheTime = Date.now();
@@ -282,14 +264,10 @@ app.get("/api/mandi-prices", async (req, res) => {
 
     return res.json(data);
   } catch (error) {
-    console.error(
-      "❌ Mandi API error:",
-      error
-    );
+    console.error("❌ Mandi API error:", error);
 
-    // -----------------------------------------------
     // CACHE FALLBACK
-    // -----------------------------------------------
+
 
     if (mandiCache) {
       console.log(
@@ -307,9 +285,7 @@ app.get("/api/mandi-prices", async (req, res) => {
   }
 });
 
-// =====================================================
-// HOME
-// =====================================================
+// HOME / HEALTH
 
 app.get("/", (req, res) => {
   res.json({
@@ -317,12 +293,22 @@ app.get("/", (req, res) => {
   });
 });
 
-// =====================================================
-// SERVER
-// =====================================================
+// CONNECT TO DATABASE
+const startServer = async () => {
+  await connectDB();
 
-app.listen(PORT, () => {
-  console.log(
-    `🌾 Bharat Fasal API running on http://localhost:${PORT}`
-  );
-});
+  app.listen(PORT, () => {
+    console.log(
+      `🌾 Bharat Fasal API running on http://localhost:${PORT}`
+    );
+
+    console.log(
+      `🔐 DATA_GOV_API_KEY: ${process.env.DATA_GOV_API_KEY
+        ? "loaded"
+        : "missing"
+      }`
+    );
+  });
+};
+
+startServer();
