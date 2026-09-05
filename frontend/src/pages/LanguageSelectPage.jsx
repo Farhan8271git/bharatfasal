@@ -40,14 +40,15 @@ export default function LanguageSelectPage({ onComplete }) {
             "url('https://images.unsplash.com/photo-1500382017468-9049fed747ef?auto=format&fit=crop&w=2000&q=85')",
         }}
       />
-{/* Dark transparent overlay */}
-<div className="absolute inset-0 bg-black/35" />
 
-{/* Green tint */}
-<div className="absolute inset-0 bg-primary-950/20" />
+      {/* Dark transparent overlay */}
+      <div className="absolute inset-0 bg-black/35" />
 
-{/* Soft gradient for readability */}
-<div className="absolute inset-0 bg-gradient-to-b from-black/20 via-transparent to-black/35" />
+      {/* Green tint */}
+      <div className="absolute inset-0 bg-primary-950/20" />
+
+      {/* Soft gradient for readability */}
+      <div className="absolute inset-0 bg-gradient-to-b from-black/20 via-transparent to-black/35" />
 
       {/* Main Content */}
       <div className="relative z-10 w-full max-w-3xl">
@@ -82,7 +83,7 @@ export default function LanguageSelectPage({ onComplete }) {
         </div>
 
         {/* Language Card */}
-       <div className="bg-white/75 backdrop-blur-xl border border-white/60 rounded-3xl shadow-2xl p-4 sm:p-7">
+        <div className="bg-white/75 backdrop-blur-xl border border-white/60 rounded-3xl shadow-2xl p-4 sm:p-7">
 
           <LanguageSelector
             selectedLang={selected}
@@ -115,6 +116,7 @@ export default function LanguageSelectPage({ onComplete }) {
             </span>
 
             <ArrowRight size={21} />
+
           </button>
 
         </div>
