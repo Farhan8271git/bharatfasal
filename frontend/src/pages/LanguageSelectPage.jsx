@@ -30,7 +30,7 @@ export default function LanguageSelectPage({ onComplete }) {
   }
 
   return (
-    <div className="relative min-h-screen overflow-hidden flex items-center justify-center px-4 py-8 sm:px-6">
+    <div className="relative min-h-screen overflow-y-auto flex items-start justify-center px-4 py-8 sm:items-center sm:px-6">
 
       {/* Background Image */}
       <div
