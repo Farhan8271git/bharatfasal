@@ -21,4 +21,21 @@ const protect = (req, res, next) => {
   }
 };
 
+// role-based authorization
+export const authorize = (...allowedRoles) => {
+  return (req, res, next) => {
+    // ensure authentication middleware ran first
+    if (!req.user) {
+      return next(new AppError("Authentication required", 401));
+    }
+
+    // check whether user's role is allowed
+    if (!allowedRoles.includes(req.user.role)) {
+      return next(new AppError("Access denied", 403));
+    }
+
+    next();
+  };
+};
+
 export default protect;

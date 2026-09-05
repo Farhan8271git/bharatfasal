@@ -113,7 +113,8 @@ const RegisterPage = () => {
     setError("");
   };
 
-  const handleSubmit = (e) => {
+  // register user
+  const handleSubmit = async (e) => {
     e.preventDefault();
 
     const name = formData.name.trim();
@@ -194,22 +195,47 @@ const RegisterPage = () => {
       return;
     }
 
-    // Save registration data
-    const user = {
+    // prepare backend registration payload
+    const registrationData = {
       role: formData.role,
       name,
-      organizationName,
-      phone: formData.phone,
+      mobile: formData.phone,
       email: formData.email.trim(),
       village: formData.village.trim(),
       district: formData.district.trim(),
       state: formData.state,
-      businessType: formData.businessType.trim(),
+      password: formData.password,
+      termsAccepted: true,
     };
 
-    localStorage.setItem("bf_registered_user", JSON.stringify(user));
+    try {
+      // send registration request
+      const response = await fetch("/api/auth/register", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(registrationData),
+      });
 
-    navigate("/verification");
+      const data = await response.json();
+
+      if (!response.ok) {
+        setError(data.message || "Registration failed.");
+        return;
+      }
+
+      // save safe user data returned by backend
+      localStorage.setItem(
+        "bf_registered_user",
+        JSON.stringify(data.user),
+      );
+
+      navigate("/verification");
+    } catch (error) {
+      console.error("Registration error:", error);
+      setError("Unable to connect to the server. Please try again.");
+    }
   };
 
   return (
@@ -275,11 +301,10 @@ const RegisterPage = () => {
                         key={role.id}
                         type="button"
                         onClick={() => handleRoleChange(role.id)}
-                        className={`relative rounded-lg border p-2.5 text-left transition ${
-                          isSelected
+                        className={`relative rounded-lg border p-2.5 text-left transition ${isSelected
                             ? "border-green-700 bg-green-50"
                             : "border-gray-200 bg-white hover:border-green-300 hover:bg-gray-50"
-                        }`}
+                          }`}
                       >
                         {isSelected && (
                           <span className="absolute right-2 top-2 flex h-4 w-4 items-center justify-center rounded-full bg-green-700 text-white">
@@ -533,6 +558,7 @@ const RegisterPage = () => {
                         value={formData.password}
                         onChange={handleChange}
                         placeholder="Minimum 6 characters"
+                        autoComplete="new-password"
                         className="w-full rounded-lg border border-gray-300 bg-white py-2 pl-9 pr-9 text-xs outline-none transition focus:border-green-600 focus:ring-2 focus:ring-green-100"
                       />
 
@@ -568,6 +594,7 @@ const RegisterPage = () => {
                         value={formData.confirmPassword}
                         onChange={handleChange}
                         placeholder="Re-enter password"
+                        autoComplete="new-password"
                         className="w-full rounded-lg border border-gray-300 bg-white py-2 pl-9 pr-9 text-xs outline-none transition focus:border-green-600 focus:ring-2 focus:ring-green-100"
                       />
 

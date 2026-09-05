@@ -38,9 +38,9 @@ const userSchema = new mongoose.Schema(
     // location
     village: {
       type: String,
-      required: true,
-      trim: true,
-      maxlength: 100,
+      required: function () {
+        return this.role === "farmer";
+      },
     },
 
     district: {
@@ -61,6 +61,17 @@ const userSchema = new mongoose.Schema(
     passwordHash: {
       type: String,
       required: true,
+    },
+
+        // password reset
+    passwordResetToken: {
+      type: String,
+      default: null,
+    },
+
+    passwordResetExpires: {
+      type: Date,
+      default: null,
     },
 
     // registration consent

@@ -1,3 +1,4 @@
+import crypto from "crypto";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import User from "../models/user.model.js";
@@ -28,10 +29,10 @@ export const registerUser = async ({
     !normalizedRole ||
     !normalizedName ||
     !normalizedMobile ||
-    !normalizedVillage ||
     !normalizedDistrict ||
     !normalizedState ||
-    !password
+    !password ||
+    (normalizedRole === "farmer" && !normalizedVillage)
   ) {
     const error = new Error("All required fields must be provided");
     error.statusCode = 400;
@@ -56,18 +57,14 @@ export const registerUser = async ({
 
   // validate password
   if (password.length < 6) {
-    const error = new Error(
-      "Password must be at least 6 characters"
-    );
+    const error = new Error("Password must be at least 6 characters");
     error.statusCode = 400;
     throw error;
   }
 
   // terms must be accepted
   if (termsAccepted !== true) {
-    const error = new Error(
-      "Terms and Conditions must be accepted"
-    );
+    const error = new Error("Terms and Conditions must be accepted");
     error.statusCode = 400;
     throw error;
   }
@@ -138,7 +135,9 @@ export const loginUser = async ({ mobile, password }) => {
 
   // required field validation
   if (!normalizedMobile || !password) {
-    const error = new Error("Mobile number and password are required");
+    const error = new Error(
+      "Mobile number and password are required"
+    );
     error.statusCode = 400;
     throw error;
   }
@@ -186,7 +185,6 @@ export const loginUser = async ({ mobile, password }) => {
     }
   );
 
-  // return safe user data
   return {
     token,
     user: {
@@ -200,5 +198,128 @@ export const loginUser = async ({ mobile, password }) => {
       state: user.state,
       termsAccepted: user.termsAccepted,
     },
+  };
+};
+
+// forgot password
+export const forgotPasswordUser = async ({ mobile }) => {
+  const normalizedMobile = String(mobile || "").trim();
+
+  // validate mobile
+  if (!normalizedMobile) {
+    const error = new Error("Mobile number is required");
+    error.statusCode = 400;
+    throw error;
+  }
+
+  if (!/^[6-9]\d{9}$/.test(normalizedMobile)) {
+    const error = new Error("Invalid mobile number");
+    error.statusCode = 400;
+    throw error;
+  }
+
+  // find user
+  const user = await User.findOne({
+    mobile: normalizedMobile,
+  });
+
+  // do not reveal whether account exists
+  if (!user) {
+    return {
+      message:
+        "If an account exists with this mobile number, password reset can be continued.",
+    };
+  }
+
+  // generate secure reset token
+  const resetToken = crypto.randomBytes(32).toString("hex");
+
+  // hash token before storing
+  const hashedResetToken = crypto
+    .createHash("sha256")
+    .update(resetToken)
+    .digest("hex");
+
+  // token expires after 15 minutes
+  const resetExpires = new Date(Date.now() + 15 * 60 * 1000);
+
+  user.passwordResetToken = hashedResetToken;
+  user.passwordResetExpires = resetExpires;
+
+  await user.save();
+
+  return {
+    message: "Password reset request created",
+    resetToken,
+  };
+};
+
+// reset password
+export const resetPassword = async ({
+  mobile,
+  resetToken,
+  newPassword,
+}) => {
+  const normalizedMobile = String(mobile || "").trim();
+
+  // validate required fields
+  if (!normalizedMobile || !resetToken || !newPassword) {
+    const error = new Error(
+      "Mobile number, reset token and new password are required"
+    );
+    error.statusCode = 400;
+    throw error;
+  }
+
+  // validate mobile
+  if (!/^[6-9]\d{9}$/.test(normalizedMobile)) {
+    const error = new Error("Invalid mobile number");
+    error.statusCode = 400;
+    throw error;
+  }
+
+  // validate password
+  if (newPassword.length < 6) {
+    const error = new Error(
+      "Password must be at least 6 characters"
+    );
+    error.statusCode = 400;
+    throw error;
+  }
+
+  // hash provided reset token for database comparison
+  const hashedResetToken = crypto
+    .createHash("sha256")
+    .update(resetToken)
+    .digest("hex");
+
+  // find user with valid reset token
+  const user = await User.findOne({
+    mobile: normalizedMobile,
+    passwordResetToken: hashedResetToken,
+    passwordResetExpires: {
+      $gt: new Date(),
+    },
+  });
+
+  if (!user) {
+    const error = new Error(
+      "Invalid or expired password reset token"
+    );
+    error.statusCode = 400;
+    throw error;
+  }
+
+  // hash new password
+  user.passwordHash = await bcrypt.hash(newPassword, 12);
+
+  // invalidate reset token after successful reset
+  user.passwordResetToken = undefined;
+  user.passwordResetExpires = undefined;
+
+  await user.save();
+
+  return {
+    message: "Password reset successful",
   };
 };
