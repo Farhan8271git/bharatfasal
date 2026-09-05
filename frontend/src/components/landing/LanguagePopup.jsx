@@ -130,9 +130,9 @@ const LanguagePopup = ({ onComplete }) => {
     onComplete();
   };
 
- return (
-  <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/35 px-4">
-    <div className="w-full max-w-sm rounded-xl border border-white/50 bg-white/90 px-5 py-5 shadow-xl backdrop-blur-md">
+  return (
+    <div className="fixed inset-0 z-[100] overflow-y-auto bg-black/35 px-4 py-4 sm:flex sm:items-center sm:justify-center">
+    <div className="mx-auto my-2 w-full max-w-sm rounded-xl border border-white/50 bg-white/90 px-5 py-5 shadow-xl backdrop-blur-md sm:my-0">
 
       {/* Logo & Heading */}
       <div className="text-center">
@@ -195,7 +195,7 @@ const LanguagePopup = ({ onComplete }) => {
       </p>
     </div>
   </div>
-);
-}
+  );
+};
 
 export default LanguagePopup;
