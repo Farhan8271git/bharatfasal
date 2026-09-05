@@ -30,11 +30,11 @@ export default function LanguageSelectPage({ onComplete }) {
   }
 
   return (
-    <div className="relative min-h-screen overflow-y-auto flex items-start justify-center px-4 py-8 sm:items-center sm:px-6">
+    <div className="relative min-h-screen overflow-x-hidden overflow-y-auto flex items-center justify-center px-4 py-8 sm:px-6">
 
       {/* Background Image */}
       <div
-        className="absolute inset-0 bg-cover bg-center"
+        className="fixed inset-0 bg-cover bg-center"
         style={{
           backgroundImage:
             "url('https://images.unsplash.com/photo-1500382017468-9049fed747ef?auto=format&fit=crop&w=2000&q=85')",
@@ -42,16 +42,16 @@ export default function LanguageSelectPage({ onComplete }) {
       />
 
       {/* Dark transparent overlay */}
-      <div className="absolute inset-0 bg-black/35" />
+      <div className="fixed inset-0 bg-black/35" />
 
       {/* Green tint */}
-      <div className="absolute inset-0 bg-primary-950/20" />
+      <div className="fixed inset-0 bg-primary-950/20" />
 
       {/* Soft gradient for readability */}
-      <div className="absolute inset-0 bg-gradient-to-b from-black/20 via-transparent to-black/35" />
+      <div className="fixed inset-0 bg-gradient-to-b from-black/20 via-transparent to-black/35" />
 
       {/* Main Content */}
-      <div className="relative z-10 w-full max-w-3xl">
+      <div className="relative z-10 w-full max-w-3xl py-4">
 
         {/* Brand */}
         <div className="text-center text-white mb-6 sm:mb-8">
@@ -116,7 +116,6 @@ export default function LanguageSelectPage({ onComplete }) {
             </span>
 
             <ArrowRight size={21} />
-
           </button>
 
         </div>
