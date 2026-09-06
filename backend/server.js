@@ -1,11 +1,11 @@
+import dotenv from "dotenv";
+dotenv.config();
+
 import express from "express";
 import cors from "cors";
-import dotenv from "dotenv";
 import mandiRoutes from "./routes/mandi.routes.js";
 import authRoutes from "./routes/auth.routes.js";
 import connectDB from "./config/db.js";
-
-dotenv.config();
 
 const app = express();
 const PORT = 5000;
@@ -311,4 +311,4 @@ const startServer = async () => {
   });
 };
 
-startServer();l
+startServer();
