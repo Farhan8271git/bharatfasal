@@ -5,7 +5,7 @@ const userSchema = new mongoose.Schema(
     // account role
     role: {
       type: String,
-      enum: ["farmer", "fpo", "buyer"],
+      enum: ["farmer", "fpo", "buyer", "admin"],
       required: true,
     },
 
@@ -16,6 +16,13 @@ const userSchema = new mongoose.Schema(
       trim: true,
       minlength: 2,
       maxlength: 100,
+    },
+
+    // optional organization name
+    organizationName: {
+      type: String,
+      trim: true,
+      maxlength: 150,
     },
 
     // primary mobile number
@@ -57,13 +64,20 @@ const userSchema = new mongoose.Schema(
       maxlength: 100,
     },
 
+    //business type
+    businessType: {
+      type: String,
+      trim: true,
+      maxlength: 100,
+    },
+
     // hashed password only
     passwordHash: {
       type: String,
       required: true,
     },
 
-        // password reset
+    // password reset
     passwordResetToken: {
       type: String,
       default: null,

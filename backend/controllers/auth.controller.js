@@ -1,29 +1,30 @@
 import {
   registerUser,
   loginUser,
-  forgotPasswordUser,
-  resetPassword,
 } from "../services/auth.service.js";
 
-// register user
+import User from "../models/user.model.js";
+
+import {
+  sendOtp,
+  verifyOtp,
+  resetPassword,
+} from "../services/otp.service.js";
+
+// Register a new user.
 export const register = async (req, res) => {
-  console.log("🔥 REGISTER CONTROLLER HIT");
-
   try {
-    console.log("📦 REGISTER BODY:", req.body);
-    console.log("⏳ CALLING REGISTER SERVICE...");
-
     const user = await registerUser(req.body);
 
-    console.log("✅ REGISTER SERVICE COMPLETED");
+    console.log("User registered:", user.mobile);
 
     return res.status(201).json({
       success: true,
-      message: "✔️User registered successfully",
+      message: "User registered successfully",
       user,
     });
   } catch (error) {
-    console.error("❌ REGISTER CONTROLLER ERROR:", error);
+    console.error("Register controller error:", error);
 
     return res.status(error.statusCode || 500).json({
       success: false,
@@ -32,12 +33,10 @@ export const register = async (req, res) => {
   }
 };
 
-// login user
+// Authenticate an existing user.
 export const login = async (req, res) => {
   try {
     const result = await loginUser(req.body);
-
-    console.log("☑️ User logged in:", result.user.mobile);
 
     return res.status(200).json({
       success: true,
@@ -54,16 +53,62 @@ export const login = async (req, res) => {
   }
 };
 
-// get current authenticated user
-export const getCurrentUser = async (req, res) => {
+//logout user
+export const logout = async (req, res) => {
+  res.clearCookie("accessToken", {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "strict",
+  });
+
   return res.status(200).json({
     success: true,
-    message: "Authenticated user",
-    user: req.user,
+    message: "Logout successful",
   });
 };
 
-// farmer authentication
+// Fetch the authenticated user's profile.
+export const getCurrentUser = async (req, res) => {
+  try {
+    const user = await User.findById(req.user.userId).select(
+      "-passwordHash"
+    );
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: "User not found",
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: "Authenticated user",
+      user: {
+        id: user._id,
+        role: user.role,
+        name: user.name,
+        organizationName: user.organizationName || "",
+        mobile: user.mobile,
+        email: user.email || "",
+        village: user.village || "",
+        district: user.district,
+        state: user.state,
+        businessType: user.businessType || "",
+        termsAccepted: user.termsAccepted,
+      },
+    });
+  } catch (error) {
+    console.error("Get current user error:", error);
+
+    return res.status(500).json({
+      success: false,
+      message: "Unable to get current user",
+    });
+  }
+};
+
+// Verify farmer authorization.
 export const farmerTest = async (req, res) => {
   return res.status(200).json({
     success: true,
@@ -72,38 +117,59 @@ export const farmerTest = async (req, res) => {
   });
 };
 
-// forgot password
-export const forgotPassword = async (req, res) => {
+// Generate an OTP for password recovery.
+export const sendPasswordOtp = async (req, res) => {
   try {
-    const result = await forgotPasswordUser(req.body);
+    await sendOtp(req.body.mobile);
 
     return res.status(200).json({
       success: true,
-      message: result.message,
-      resetToken: result.resetToken,
+      message: "OTP generated successfully",
     });
   } catch (error) {
-    console.error("Forgot password controller error:", error);
+    console.error("Send OTP error:", error);
 
     return res.status(error.statusCode || 500).json({
       success: false,
-      message:
-        error.message || "Unable to process password reset request",
+      message: error.message || "Unable to generate OTP",
     });
   }
 };
 
-// reset password
-export const resetPasswordController = async (req, res) => {
+// Verify the password recovery OTP.
+export const verifyPasswordOtp = async (req, res) => {
   try {
-    const result = await resetPassword(req.body);
+    await verifyOtp(req.body.mobile, req.body.otp);
 
     return res.status(200).json({
       success: true,
-      message: result.message,
+      message: "OTP verified successfully",
     });
   } catch (error) {
-    console.error("Reset password controller error:", error);
+    console.error("Verify OTP error:", error);
+
+    return res.status(error.statusCode || 500).json({
+      success: false,
+      message: error.message || "Unable to verify OTP",
+    });
+  }
+};
+
+// Reset the user's password using the OTP.
+export const resetUserPassword = async (req, res) => {
+  try {
+    await resetPassword(
+      req.body.mobile,
+      req.body.otp,
+      req.body.newPassword
+    );
+
+    return res.status(200).json({
+      success: true,
+      message: "Password reset successfully",
+    });
+  } catch (error) {
+    console.error("Reset password error:", error);
 
     return res.status(error.statusCode || 500).json({
       success: false,
@@ -111,3 +177,5 @@ export const resetPasswordController = async (req, res) => {
     });
   }
 };
+
+

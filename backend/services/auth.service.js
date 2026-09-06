@@ -2,178 +2,186 @@ import crypto from "crypto";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import User from "../models/user.model.js";
+import AppError from "../utils/AppError.js";
 
-// register new user
+const validateMobile = (mobile) => {
+  if (!/^[6-9]\d{9}$/.test(mobile)) {
+    throw new AppError("Invalid mobile number", 400);
+  }
+};
+
+const validatePassword = (password) => {
+  if (typeof password !== "string" || password.length < 6) {
+    throw new AppError("Password must be at least 6 characters", 400);
+  }
+};
+
+const sanitizeUser = (user) => ({
+  id: user._id,
+  role: user.role,
+  name: user.name,
+  organizationName: user.organizationName || "",
+  mobile: user.mobile,
+  email: user.email || null,
+  village: user.village || "",
+  district: user.district,
+  state: user.state,
+  businessType: user.businessType || "",
+  termsAccepted: user.termsAccepted,
+});
+
 export const registerUser = async ({
   role,
   name,
+  organizationName,
   mobile,
   email,
   village,
   district,
   state,
+  businessType,
   password,
   termsAccepted,
 }) => {
-  // normalize input
   const normalizedRole = String(role || "").trim().toLowerCase();
   const normalizedName = String(name || "").trim();
+  const normalizedOrganizationName = String(
+    organizationName || ""
+  ).trim();
   const normalizedMobile = String(mobile || "").trim();
   const normalizedEmail = String(email || "").trim().toLowerCase();
   const normalizedVillage = String(village || "").trim();
   const normalizedDistrict = String(district || "").trim();
   const normalizedState = String(state || "").trim();
+  const normalizedBusinessType = String(
+    businessType || ""
+  ).trim();
 
-  // required field validation
   if (
     !normalizedRole ||
     !normalizedName ||
     !normalizedMobile ||
     !normalizedDistrict ||
     !normalizedState ||
-    !password ||
-    (normalizedRole === "farmer" && !normalizedVillage)
+    !password
   ) {
-    const error = new Error("All required fields must be provided");
-    error.statusCode = 400;
-    throw error;
+    throw new AppError("All required fields must be provided", 400);
   }
 
-  // validate role
   const allowedRoles = ["farmer", "fpo", "buyer"];
 
   if (!allowedRoles.includes(normalizedRole)) {
-    const error = new Error("Invalid user role");
-    error.statusCode = 400;
-    throw error;
+    throw new AppError("Invalid user role", 400);
   }
 
-  // validate mobile number
-  if (!/^[6-9]\d{9}$/.test(normalizedMobile)) {
-    const error = new Error("Invalid mobile number");
-    error.statusCode = 400;
-    throw error;
+  validateMobile(normalizedMobile);
+  validatePassword(password);
+
+  if (normalizedRole === "farmer" && !normalizedVillage) {
+    throw new AppError("Village is required for farmer", 400);
   }
 
-  // validate password
-  if (password.length < 6) {
-    const error = new Error("Password must be at least 6 characters");
-    error.statusCode = 400;
-    throw error;
-  }
-
-  // terms must be accepted
   if (termsAccepted !== true) {
-    const error = new Error("Terms and Conditions must be accepted");
-    error.statusCode = 400;
-    throw error;
+    throw new AppError("Terms and Conditions must be accepted", 400);
   }
 
-  // optional email validation
   if (
     normalizedEmail &&
-    !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail)
+  !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail)
   ) {
-    const error = new Error("Invalid email address");
-    error.statusCode = 400;
-    throw error;
+    throw new AppError("Invalid email address", 400);
   }
 
-  // check existing mobile
   const existingMobile = await User.findOne({
     mobile: normalizedMobile,
   });
 
   if (existingMobile) {
-    const error = new Error(
-      "An account with this mobile number already exists"
+    throw new AppError(
+      "An account with this mobile number already exists",
+      409
     );
-    error.statusCode = 409;
-    throw error;
   }
 
-  // check existing email only when provided
   if (normalizedEmail) {
     const existingEmail = await User.findOne({
       email: normalizedEmail,
     });
 
     if (existingEmail) {
-      const error = new Error(
-        "An account with this email already exists"
+      throw new AppError(
+        "An account with this email already exists",
+        409
       );
-      error.statusCode = 409;
-      throw error;
     }
   }
 
-  // hash password before storing
   const passwordHash = await bcrypt.hash(password, 12);
 
-  // create user
   const user = await User.create({
     role: normalizedRole,
     name: normalizedName,
+    ...(normalizedOrganizationName && {
+      organizationName: normalizedOrganizationName,
+    }),
     mobile: normalizedMobile,
     ...(normalizedEmail && {
       email: normalizedEmail,
     }),
-    village: normalizedVillage,
+    ...(normalizedVillage && {
+      village: normalizedVillage,
+    }),
     district: normalizedDistrict,
     state: normalizedState,
+    ...(normalizedBusinessType && {
+      businessType: normalizedBusinessType,
+    }),
     passwordHash,
     termsAccepted: true,
   });
 
-  return user;
+  return sanitizeUser(user);
 };
 
-// login existing user
 export const loginUser = async ({ mobile, password }) => {
-  // normalize input
   const normalizedMobile = String(mobile || "").trim();
 
-  // required field validation
   if (!normalizedMobile || !password) {
-    const error = new Error(
-      "Mobile number and password are required"
+    throw new AppError(
+      "Mobile number and password are required",
+      400
     );
-    error.statusCode = 400;
-    throw error;
   }
 
-  // validate mobile number
-  if (!/^[6-9]\d{9}$/.test(normalizedMobile)) {
-    const error = new Error("Invalid mobile number");
-    error.statusCode = 400;
-    throw error;
-  }
+  validateMobile(normalizedMobile);
 
-  // find user by mobile
   const user = await User.findOne({
     mobile: normalizedMobile,
   });
 
-  // avoid account enumeration
   if (!user) {
-    const error = new Error("Invalid mobile number or password");
-    error.statusCode = 401;
-    throw error;
+    throw new AppError(
+      "Invalid mobile number or password",
+      401
+    );
   }
 
-  // compare password with stored hash
   const passwordMatch = await bcrypt.compare(
     password,
     user.passwordHash
   );
 
   if (!passwordMatch) {
-    const error = new Error("Invalid mobile number or password");
-    error.statusCode = 401;
-    throw error;
+    throw new AppError(
+      "Invalid mobile number or password",
+      401
+    );
   }
 
-  // generate access token
+  if (!process.env.JWT_SECRET) {
+    throw new AppError("JWT secret is not configured", 500);
+  }
+
   const token = jwt.sign(
     {
       userId: user._id.toString(),
@@ -187,43 +195,23 @@ export const loginUser = async ({ mobile, password }) => {
 
   return {
     token,
-    user: {
-      id: user._id,
-      role: user.role,
-      name: user.name,
-      mobile: user.mobile,
-      email: user.email || null,
-      village: user.village,
-      district: user.district,
-      state: user.state,
-      termsAccepted: user.termsAccepted,
-    },
+    user: sanitizeUser(user),
   };
 };
 
-// forgot password
 export const forgotPasswordUser = async ({ mobile }) => {
   const normalizedMobile = String(mobile || "").trim();
 
-  // validate mobile
   if (!normalizedMobile) {
-    const error = new Error("Mobile number is required");
-    error.statusCode = 400;
-    throw error;
+    throw new AppError("Mobile number is required", 400);
   }
 
-  if (!/^[6-9]\d{9}$/.test(normalizedMobile)) {
-    const error = new Error("Invalid mobile number");
-    error.statusCode = 400;
-    throw error;
-  }
+  validateMobile(normalizedMobile);
 
-  // find user
   const user = await User.findOne({
     mobile: normalizedMobile,
   });
 
-  // do not reveal whether account exists
   if (!user) {
     return {
       message:
@@ -231,20 +219,17 @@ export const forgotPasswordUser = async ({ mobile }) => {
     };
   }
 
-  // generate secure reset token
   const resetToken = crypto.randomBytes(32).toString("hex");
 
-  // hash token before storing
   const hashedResetToken = crypto
     .createHash("sha256")
     .update(resetToken)
     .digest("hex");
 
-  // token expires after 15 minutes
-  const resetExpires = new Date(Date.now() + 15 * 60 * 1000);
-
   user.passwordResetToken = hashedResetToken;
-  user.passwordResetExpires = resetExpires;
+  user.passwordResetExpires = new Date(
+    Date.now() + 15 * 60 * 1000
+  );
 
   await user.save();
 
@@ -254,7 +239,6 @@ export const forgotPasswordUser = async ({ mobile }) => {
   };
 };
 
-// reset password
 export const resetPassword = async ({
   mobile,
   resetToken,
@@ -262,38 +246,21 @@ export const resetPassword = async ({
 }) => {
   const normalizedMobile = String(mobile || "").trim();
 
-  // validate required fields
   if (!normalizedMobile || !resetToken || !newPassword) {
-    const error = new Error(
-      "Mobile number, reset token and new password are required"
+    throw new AppError(
+      "Mobile number, reset token and new password are required",
+      400
     );
-    error.statusCode = 400;
-    throw error;
   }
 
-  // validate mobile
-  if (!/^[6-9]\d{9}$/.test(normalizedMobile)) {
-    const error = new Error("Invalid mobile number");
-    error.statusCode = 400;
-    throw error;
-  }
+  validateMobile(normalizedMobile);
+  validatePassword(newPassword);
 
-  // validate password
-  if (newPassword.length < 6) {
-    const error = new Error(
-      "Password must be at least 6 characters"
-    );
-    error.statusCode = 400;
-    throw error;
-  }
-
-  // hash provided reset token for database comparison
   const hashedResetToken = crypto
     .createHash("sha256")
     .update(resetToken)
     .digest("hex");
 
-  // find user with valid reset token
   const user = await User.findOne({
     mobile: normalizedMobile,
     passwordResetToken: hashedResetToken,
@@ -303,17 +270,13 @@ export const resetPassword = async ({
   });
 
   if (!user) {
-    const error = new Error(
-      "Invalid or expired password reset token"
+    throw new AppError(
+      "Invalid or expired password reset token",
+      400
     );
-    error.statusCode = 400;
-    throw error;
   }
 
-  // hash new password
   user.passwordHash = await bcrypt.hash(newPassword, 12);
-
-  // invalidate reset token after successful reset
   user.passwordResetToken = undefined;
   user.passwordResetExpires = undefined;
 

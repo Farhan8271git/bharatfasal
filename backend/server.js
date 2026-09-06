@@ -1,32 +1,59 @@
 import dotenv from "dotenv";
+
 dotenv.config();
 
 import express from "express";
 import cors from "cors";
+
 import mandiRoutes from "./routes/mandi.routes.js";
 import authRoutes from "./routes/auth.routes.js";
+import verificationRoutes from "./routes/verifications.routes.js";
+
 import connectDB from "./config/db.js";
 
 const app = express();
-const PORT = 5000;
+app.use((req, res, next) => {
+  const startTime = Date.now();
+
+  res.on("finish", () => {
+    const duration = Date.now() - startTime;
+
+    console.log(
+      `${req.method} ${req.originalUrl} \x1b[32m${res.statusCode}\x1b[0m \x1b[32m${duration}ms\x1b[0m`
+    );
+  });
+
+  next();
+});
+
+const PORT = process.env.PORT || 5000;
 
 // MIDDLEWARE
 
 app.use(cors());
-app.use(express.json());
-app.use("/api/auth", authRoutes);
 
+app.use(express.json());
 
 // ROUTES
+
+app.use("/api/auth", authRoutes);
+
 app.use("/api/mandi-prices", mandiRoutes);
 
-// Mandi API cache
-let mandiCache = null;
-let mandiCacheTime = 0;
+app.use("/api/verifications", verificationRoutes);
 
-const CACHE_DURATION = 10 * 60 * 1000;
+
+app.use((err, req, res, next) => {
+  console.error("Global error:", err);
+
+  return res.status(err.statusCode || 500).json({
+    success: false,
+    message: err.message || "Internal server error",
+  });
+});
 
 // Crop image cache
+
 const cropImageCache = new Map();
 
 // HELPER - CLEAN CROP NAME
@@ -39,6 +66,7 @@ function cleanCropName(crop) {
     .trim()
     .toLowerCase();
 }
+
 // LOCAL CROP IMAGE MAP
 
 function getLocalCropImage(crop) {
@@ -70,6 +98,7 @@ app.get("/api/crop-image", async (req, res) => {
     const crop = String(req.query.crop || "").trim();
 
     // validate crop name
+
     if (!crop) {
       return res.status(400).json({
         success: false,
@@ -106,6 +135,7 @@ app.get("/api/crop-image", async (req, res) => {
     }
 
     // WIKIMEDIA COMMONS FALLBACK
+
     const searchQuery = encodeURIComponent(
       `${crop} crop agriculture`
     );
@@ -178,113 +208,6 @@ app.get("/api/crop-image", async (req, res) => {
   }
 });
 
-// MANDI PRICES API
-
-app.get("/api/mandi-prices", async (req, res) => {
-  try {
-    // RETURN CACHE
-
-    if (
-      mandiCache &&
-      Date.now() - mandiCacheTime < CACHE_DURATION
-    ) {
-      console.log("✅ Returning cached mandi data");
-
-      return res.json(mandiCache);
-    }
-
-    // CHECK API KEY
-
-    const apiKey = process.env.DATA_GOV_API_KEY;
-
-    if (!apiKey) {
-      return res.status(500).json({
-        success: false,
-        message: "DATA_GOV_API_KEY is missing in .env",
-      });
-    }
-
-    // GOVERNMENT API
-
-    const apiUrl =
-      "https://api.data.gov.in/resource/9ef84268-d588-465a-a308-a864a43d0070" +
-      `?api-key=${encodeURIComponent(apiKey)}` +
-      "&format=json" +
-      "&limit=20";
-
-    console.log("🌾 Calling Government Mandi API...");
-
-    const response = await fetch(apiUrl);
-    const text = await response.text();
-
-    console.log(
-      "Government API status:",
-      response.status
-    );
-
-    // GOVERNMENT API ERROR
-
-    if (!response.ok) {
-      if (mandiCache) {
-        console.log(
-          "⚠️ Government API unavailable. Returning old cache."
-        );
-
-        return res.json(mandiCache);
-      }
-
-      return res.status(500).json({
-        success: false,
-        message: "Government API request failed",
-        governmentStatus: response.status,
-        details: text,
-      });
-    }
-
-    // PARSE GOVERNMENT RESPONSE
-
-    const data = JSON.parse(text);
-
-    if (!Array.isArray(data?.records)) {
-      throw new Error(
-        "Government API returned no records"
-      );
-    }
-
-
-    // SAVE DATA TO CACHE
-
-    mandiCache = data;
-    mandiCacheTime = Date.now();
-
-    console.log(
-      "✅ Fresh mandi data saved:",
-      data.records.length
-    );
-
-    return res.json(data);
-  } catch (error) {
-    console.error("❌ Mandi API error:", error);
-
-    // CACHE FALLBACK
-
-
-    if (mandiCache) {
-      console.log(
-        "⚠️ Returning cached mandi data after error"
-      );
-
-      return res.json(mandiCache);
-    }
-
-    return res.status(500).json({
-      success: false,
-      message: "Unable to fetch mandi prices",
-      error: error.message,
-    });
-  }
-});
-
 // HOME / HEALTH
 
 app.get("/", (req, res) => {
@@ -294,6 +217,7 @@ app.get("/", (req, res) => {
 });
 
 // CONNECT TO DATABASE
+
 const startServer = async () => {
   await connectDB();
 

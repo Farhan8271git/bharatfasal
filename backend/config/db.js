@@ -1,7 +1,7 @@
 import mongoose from "mongoose";
 import dns from "node:dns";
 
-// use reliable DNS servers for MongoDB Atlas SRV resolution
+// Configure DNS servers for MongoDB Atlas SRV resolution
 dns.setServers(["1.1.1.1", "8.8.8.8"]);
 
 const connectDB = async () => {
