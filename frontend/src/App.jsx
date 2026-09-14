@@ -25,7 +25,7 @@ import LoginPage from "./pages/LoginPage";
 import RegisterPage from "./pages/RegisterPage";
 import ForgotPasswordPage from "./pages/ForgotPasswordPage";
 import ResetPasswordPage from "./pages/ResetPasswordPage";
-
+import VerificationPage from "./pages/VerificationPage";
 
 
 // Dashboards
@@ -55,13 +55,24 @@ function App() {
     location.pathname === "/"
   );
 
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [isLoggedIn, setIsLoggedIn] = useState(
+    localStorage.getItem('bf_logged_in') === 'true'
+  )
 
   const [userRole, setUserRole] = useState(
     localStorage.getItem("bf_user_role") || "farmer"
   );
 
-  const [currentUser, setCurrentUser] = useState(null);
+  const [currentUser, setCurrentUser] = useState(() => {
+    try {
+      const savedUser = localStorage.getItem('bf_registered_user')
+      return savedUser ? JSON.parse(savedUser) : null
+    } catch {
+      return null
+    }
+  })
+
+  const [authLoading, setAuthLoading] = useState(true);
 
   // Language popup
   const [showLanguagePopup, setShowLanguagePopup] = useState(true);
@@ -74,6 +85,79 @@ function App() {
       i18n.changeLanguage(savedLanguage);
     }
   }, [i18n]);
+
+  // JWT session restore
+  useEffect(() => {
+    const restoreSession = async () => {
+      const token = localStorage.getItem("bf_auth_token");
+
+      if (!token) {
+        setAuthLoading(false);
+        return;
+      }
+
+      try {
+        const response = await fetch(
+          "http://localhost:5000/api/auth/me",
+          {
+            method: "GET",
+            headers: {
+              Authorization: `Bearer ${token}`,
+            },
+          }
+        );
+
+        const data = await response.json();
+
+        if (!response.ok || !data.success) {
+          localStorage.removeItem("bf_auth_token");
+          localStorage.removeItem("bf_logged_in");
+          localStorage.removeItem("bf_user_role");
+
+          setIsLoggedIn(false);
+          setCurrentUser(null);
+          setUserRole("farmer");
+
+          return;
+        }
+
+        const backendUser = data.user;
+
+        const user = {
+          id: backendUser.id,
+          name: backendUser.name,
+          companyName: backendUser.organizationName || "",
+          email: backendUser.email || "",
+          role: backendUser.role,
+          location: backendUser.village || "",
+          phone: backendUser.mobile,
+          district: backendUser.district || "",
+          state: backendUser.state || "",
+        };
+
+        setCurrentUser(user);
+        setUserRole(backendUser.role);
+        setIsLoggedIn(true);
+
+        localStorage.setItem("bf_logged_in", "true");
+        localStorage.setItem("bf_user_role", backendUser.role);
+      } catch (error) {
+        console.error("Session restore error:", error);
+
+        localStorage.removeItem("bf_auth_token");
+        localStorage.removeItem("bf_logged_in");
+        localStorage.removeItem("bf_user_role");
+
+        setIsLoggedIn(false);
+        setCurrentUser(null);
+        setUserRole("farmer");
+      } finally {
+        setAuthLoading(false);
+      }
+    };
+
+    restoreSession();
+  }, []);
 
   // Language direction
   useEffect(() => {
@@ -119,6 +203,9 @@ function App() {
   const handleLogout = () => {
     localStorage.removeItem("bf_logged_in");
     localStorage.removeItem("bf_user_role");
+    localStorage.removeItem("bf_token");
+    localStorage.removeItem("bf_auth_token");
+    localStorage.removeItem("bf_registered_user");
 
     setIsLoggedIn(false);
     setUserRole("farmer");
@@ -131,6 +218,11 @@ function App() {
   const handleLanguageComplete = () => {
     setShowLanguagePopup(false);
   };
+
+  // Wait until authentication state is resolved
+  if (authLoading) {
+    return null;
+  }
 
   // Landing page
   if (location.pathname === "/" && !isLoggedIn) {
@@ -150,7 +242,7 @@ function App() {
 
   // Register
   if (location.pathname === "/register" && !isLoggedIn) {
-    return <RegisterPage />;
+    return <RegisterPage onLogin={handleLogin} />;
   }
 
   // Login
@@ -163,10 +255,16 @@ function App() {
     return <ForgotPasswordPage />;
   }
 
-  // reset password
+  // Reset password
   if (location.pathname === "/reset-password" && !isLoggedIn) {
     return <ResetPasswordPage />;
   }
+
+  // // Verification
+ if (location.pathname === "/verification" && isLoggedIn) {
+  return <VerificationPage user={currentUser} />;
+}
+
 
   // Public mandi prices
   if (location.pathname === "/prices" && !isLoggedIn) {

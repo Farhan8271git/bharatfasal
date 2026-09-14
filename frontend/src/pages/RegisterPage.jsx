@@ -54,7 +54,7 @@ const states = [
   "Other",
 ];
 
-const RegisterPage = () => {
+const RegisterPage = ({ onLogin }) => {
   const navigate = useNavigate();
 
   const [formData, setFormData] = useState({
@@ -218,20 +218,49 @@ const RegisterPage = () => {
         body: JSON.stringify(registrationData),
       });
 
-      const data = await response.json();
+      const data = await response.json().catch(() => null);
 
-      if (!response.ok) {
-        setError(data.message || "Registration failed.");
+      console.log("REGISTER RESPONSE:", data);
+
+      if (!response.ok || !data?.success || !data?.user) {
+        setError(data?.message || "Registration failed. Please try again.");
         return;
       }
 
-      // save safe user data returned by backend
+      console.log("Registration successful:", data);
+
+      const loginResponse = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          mobile: formData.phone,
+          password: formData.password,
+        }),
+      });
+
+      const loginData = await loginResponse.json().catch(() => null);
+
+      if (!loginResponse.ok || !loginData?.success || !loginData?.token) {
+        setError(
+          loginData?.message ||
+          "Account created, but automatic login failed."
+        );
+        return;
+      }
+
+      localStorage.setItem("bf_auth_token", loginData.token);
+      localStorage.setItem("bf_logged_in", "true");
+      localStorage.setItem("bf_user_role", loginData.user.role);
       localStorage.setItem(
         "bf_registered_user",
-        JSON.stringify(data.user),
+        JSON.stringify(loginData.user)
       );
 
-      navigate("/verification");
+      onLogin(loginData.user.role, loginData.user);
+
+      // navigate("/verification");
     } catch (error) {
       console.error("Registration error:", error);
       setError("Unable to connect to the server. Please try again.");
@@ -302,8 +331,8 @@ const RegisterPage = () => {
                         type="button"
                         onClick={() => handleRoleChange(role.id)}
                         className={`relative rounded-lg border p-2.5 text-left transition ${isSelected
-                            ? "border-green-700 bg-green-50"
-                            : "border-gray-200 bg-white hover:border-green-300 hover:bg-gray-50"
+                          ? "border-green-700 bg-green-50"
+                          : "border-gray-200 bg-white hover:border-green-300 hover:bg-gray-50"
                           }`}
                       >
                         {isSelected && (
