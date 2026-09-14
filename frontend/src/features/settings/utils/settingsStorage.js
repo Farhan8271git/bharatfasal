@@ -1,6 +1,7 @@
-
 import { SETTINGS_STORAGE_KEYS } from "../constants/settings.constants.js";
 
+const VERIFICATION_KEY = SETTINGS_STORAGE_KEYS.VERIFICATION;
+const PROFILE_KEY = SETTINGS_STORAGE_KEYS.PROFILE;
 
 export const getStoredVerification = (user) => {
   try {
