@@ -9,6 +9,13 @@ export default function PreferencesModal({
   setPreferences,
   onSave,
 }) {
+  const updatePreference = (key, value) => {
+    setPreferences((prev) => ({
+      ...prev,
+      [key]: value,
+    }));
+  };
+
   return (
     <Modal
       isOpen={open}
@@ -18,52 +25,39 @@ export default function PreferencesModal({
       <div className="space-y-4">
         <InputField
           label="Preferred Crops"
-          value={preferences?.preferredCrops || ""}
-          onChange={(event) =>
-            setPreferences((prev) => ({ ...prev, preferredCrops: event.target.value }))
-          }
+          value={preferences?.crops || ""}
+          onChange={(value) => updatePreference("crops", value)}
           placeholder="Enter preferred crops"
         />
 
         <InputField
+          label="Preferred Grade"
+          value={preferences?.grade || ""}
+          onChange={(value) => updatePreference("grade", value)}
+          placeholder="Enter preferred grade"
+        />
+
+        <InputField
+          label="Typical Quantity"
+          value={preferences?.quantity || ""}
+          onChange={(value) => updatePreference("quantity", value)}
+          placeholder="Enter typical quantity"
+        />
+
+        <InputField
           label="Preferred Location"
-          value={preferences?.preferredLocation || ""}
-          onChange={(event) =>
-            onChange("preferredLocation", event.target.value)
-          }
+          value={preferences?.location || ""}
+          onChange={(value) => updatePreference("location", value)}
           placeholder="Enter preferred procurement location"
         />
 
         <TextAreaField
-          label="Additional Requirements"
-          value={preferences?.additionalRequirements || ""}
-          onChange={(event) =>
-            onChange("additionalRequirements", event.target.value)
-          }
-          placeholder="Enter additional procurement requirements"
-          rows={4}
+          label="Transportation"
+          value={preferences?.transportation || ""}
+          onChange={(value) => updatePreference("transportation", value)}
+          placeholder="Enter transportation preference"
+          rows={3}
         />
-
-        <label className="flex items-center gap-3 rounded-xl border border-gray-200 p-4 cursor-pointer">
-          <input
-            type="checkbox"
-            checked={Boolean(preferences?.procurementAlerts)}
-            onChange={(event) =>
-              onChange("procurementAlerts", event.target.checked)
-            }
-            className="h-4 w-4 rounded border-gray-300 text-green-600 focus:ring-green-500"
-          />
-
-          <span>
-            <span className="block text-sm font-semibold text-gray-800">
-              Procurement Alerts
-            </span>
-
-            <span className="block text-xs text-gray-500 mt-0.5">
-              Receive updates related to procurement opportunities.
-            </span>
-          </span>
-        </label>
 
         <div className="flex gap-3 pt-2">
           <button
@@ -85,4 +79,4 @@ export default function PreferencesModal({
       </div>
     </Modal>
   );
-}
+} 

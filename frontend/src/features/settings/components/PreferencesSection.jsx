@@ -9,7 +9,7 @@ import PreferenceRow from "../../../components/ui/PreferenceRow";
 
 export default function PreferencesSection({
   preferences,
-  onManagePreferences,
+  onOpenPreferences,
 }) {
   return (
     <section className="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden">
@@ -23,34 +23,33 @@ export default function PreferencesSection({
 
       <div className="p-5 space-y-1">
         <PreferenceRow
-          icon={ClipboardList}
           label="Preferred Crops"
-          value={
-            preferences?.preferredCrops?.length
-              ? preferences.preferredCrops.join(", ")
-              : "Not configured"
-          }
+          value={preferences?.crops || "Not configured"}
         />
 
         <PreferenceRow
-          icon={MapPinned}
+          label="Preferred Grade"
+          value={preferences?.grade || "Not configured"}
+        />
+
+        <PreferenceRow
+          label="Typical Quantity"
+          value={preferences?.quantity || "Not configured"}
+        />
+
+        <PreferenceRow
           label="Preferred Location"
-          value={preferences?.preferredLocation || "Not configured"}
+          value={preferences?.location || "Not configured"}
         />
 
         <PreferenceRow
-          icon={BellRing}
-          label="Procurement Alerts"
-          value={
-            preferences?.procurementAlerts
-              ? "Enabled"
-              : "Disabled"
-          }
+          label="Transportation"
+          value={preferences?.transportation || "Not configured"}
         />
 
         <button
           type="button"
-          onClick={onManagePreferences}
+          onClick={onOpenPreferences}
           className="w-full mt-4 rounded-xl border border-gray-200 px-4 py-3 text-sm font-semibold text-gray-700 hover:bg-gray-50 transition"
         >
           Manage Preferences

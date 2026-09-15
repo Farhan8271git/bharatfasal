@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   Search,
   MapPin,
@@ -11,119 +11,134 @@ import {
   X,
   ArrowRight,
   CheckCircle2,
-  IndianRupee,
 } from "lucide-react";
 
-/*
-  Prototype lot data.
+import { getLots } from "../api/lots.api";
+import { createPurchaseRequest } from "../api/purchaseRequests.api";
 
-  transportCost is the estimated transportation cost
-  for the complete lot, not per quintal.
-*/
-const availableLots = [
-  {
-    id: "LOT-101",
-    crop: "Wheat",
-    variety: "Lokwan",
-    quantity: 50,
-    grade: "Grade A",
-    price: 2500,
-    location: "Gorakhpur, Uttar Pradesh",
-    seller: "Shiv Farmers FPO",
-    sellerType: "FPO",
-    rating: 4.8,
-    availableDate: "5 Sep 2026",
-    transport: "Seller will arrange",
-    transportCost: 8500,
-    description:
-      "Clean and properly dried wheat suitable for bulk procurement.",
-  },
-  {
-    id: "LOT-102",
-    crop: "Soybean",
-    variety: "Yellow Soybean",
-    quantity: 30,
-    grade: "Grade A",
-    price: 5200,
-    location: "Indore, Madhya Pradesh",
-    seller: "Malwa Agro FPO",
-    sellerType: "FPO",
-    rating: 4.7,
-    availableDate: "8 Sep 2026",
-    transport: "Buyer will arrange",
-    transportCost: 7200,
-    description:
-      "Good quality soybean lot available for institutional procurement.",
-  },
-  {
-    id: "LOT-103",
-    crop: "Onion",
-    variety: "Red Onion",
-    quantity: 100,
-    grade: "Grade B",
-    price: 1900,
-    location: "Nashik, Maharashtra",
-    seller: "Nashik Growers Group",
-    sellerType: "Farmer Group",
-    rating: 4.6,
-    availableDate: "10 Sep 2026",
-    transport: "Seller will arrange",
-    transportCost: 12500,
-    description:
-      "Fresh red onion suitable for wholesale and food processing buyers.",
-  },
-  {
-    id: "LOT-104",
-    crop: "Cotton",
-    variety: "Long Staple",
-    quantity: 20,
-    grade: "Grade A",
-    price: 7400,
-    location: "Rajkot, Gujarat",
-    seller: "Saurashtra Cotton FPO",
-    sellerType: "FPO",
-    rating: 4.9,
-    availableDate: "12 Sep 2026",
-    transport: "Buyer will arrange",
-    transportCost: 6800,
-    description:
-      "Long staple cotton with consistent quality for textile procurement.",
-  },
-  {
-    id: "LOT-105",
-    crop: "Chickpea",
-    variety: "Desi Chickpea",
-    quantity: 40,
-    grade: "Grade A",
-    price: 6100,
-    location: "Bhopal, Madhya Pradesh",
-    seller: "Bhopal Farmer Collective",
-    sellerType: "FPO",
-    rating: 4.7,
-    availableDate: "14 Sep 2026",
-    transport: "Seller will arrange",
-    transportCost: 7900,
-    description:
-      "Well-cleaned chickpea lot available for bulk purchase.",
-  },
-];
+const formatCurrency = (value) => {
+  const amount = Number(value);
 
-const cropOptions = [
-  "All Crops",
-  "Wheat",
-  "Soybean",
-  "Onion",
-  "Cotton",
-  "Chickpea",
-];
+  if (!Number.isFinite(amount)) {
+    return "₹0";
+  }
 
-const gradeOptions = [
-  "All Grades",
-  "Grade A",
-  "Grade B",
-];
+  return `₹${amount.toLocaleString("en-IN")}`;
+};
+
+const formatDate = (date) => {
+  if (!date) {
+    return "—";
+  }
+
+  const parsedDate = new Date(date);
+
+  if (Number.isNaN(parsedDate.getTime())) {
+    return String(date);
+  }
+
+  return parsedDate.toLocaleDateString("en-IN", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  });
+};
+
+const getCropName = (commodity) => {
+  if (!commodity) {
+    return "Crop";
+  }
+
+  return String(commodity)
+    .replace(/[-_]/g, " ")
+    .replace(/\b\w/g, (character) => character.toUpperCase());
+};
+
+const getGradeLabel = (grade) => {
+  if (!grade) {
+    return "—";
+  }
+
+  const value = String(grade).trim();
+
+  if (value.toLowerCase().startsWith("grade")) {
+    return value;
+  }
+
+  return `Grade ${value}`;
+};
+
+const getTransportationLabel = (transportation) => {
+  switch (transportation) {
+    case "seller":
+      return "Seller will arrange";
+
+    case "buyer":
+      return "Buyer will arrange";
+
+    case "platform":
+      return "Platform will arrange";
+
+    default:
+      return "Not specified";
+  }
+};
+
+const getSellerName = (seller) => {
+  if (!seller) {
+    return "Verified Seller";
+  }
+
+  return (
+    seller.organizationName ||
+    seller.name ||
+    "Verified Seller"
+  );
+};
+
+const getSellerType = (seller) => {
+  if (!seller) {
+    return "Seller";
+  }
+
+  if (seller.organizationName) {
+    return "FPO";
+  }
+
+  return seller.role === "fpo" ? "FPO" : "Farmer";
+};
+
+const getSellerRating = () => {
+  return null;
+};
+
+const normalizeLot = (lot) => {
+  const quantity = Number(lot.quantity) || 0;
+  const price = Number(lot.expectedPrice) || 0;
+
+  return {
+    id: lot._id,
+    crop: getCropName(lot.commodity),
+    variety: "",
+    quantity,
+    grade: getGradeLabel(lot.grade),
+    price,
+    location: lot.pickupLocation || "Location not specified",
+    seller: getSellerName(lot.sellerId),
+    sellerType: getSellerType(lot.sellerId),
+    rating: getSellerRating(lot.sellerId),
+    availableDate: formatDate(lot.availableDate),
+    transport: getTransportationLabel(lot.transportation),
+    transportCost: null,
+    description: "",
+  };
+};
 
 export default function BrowseLotsPage({ user }) {
+  const [lots, setLots] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+
   const [search, setSearch] = useState("");
   const [crop, setCrop] = useState("All Crops");
   const [grade, setGrade] = useState("All Grades");
@@ -134,6 +149,11 @@ export default function BrowseLotsPage({ user }) {
   const [showFilters, setShowFilters] = useState(false);
   const [showRequestModal, setShowRequestModal] = useState(false);
   const [requestSent, setRequestSent] = useState(false);
+  const [requestQuantity, setRequestQuantity] = useState("");
+  const [requestSubmitting, setRequestSubmitting] = useState(false);
+  const [requestError, setRequestError] = useState("");
+  const [purchaseRequest, setPurchaseRequest] = useState(null);
+
 
   const buyerName =
     user?.companyName ||
@@ -141,42 +161,101 @@ export default function BrowseLotsPage({ user }) {
     user?.name ||
     "Buyer";
 
-  const formatCurrency = (value) => {
-    return `₹${Number(value).toLocaleString("en-IN")}`;
-  };
+  useEffect(() => {
+    let isMounted = true;
 
-  /*
-    Produce cost = quantity × price per quintal
-  */
+    const loadLots = async () => {
+      setLoading(true);
+      setError("");
+
+      try {
+        const response = await getLots({
+          status: "listed",
+          page: 1,
+          limit: 100,
+        });
+
+        if (!response?.success) {
+          throw new Error(
+            response?.message || "Unable to load available lots."
+          );
+        }
+
+        if (isMounted) {
+          setLots((response.lots || []).map(normalizeLot));
+        }
+      } catch (requestError) {
+        if (isMounted) {
+          setError(
+            requestError?.message ||
+            "Unable to load available lots."
+          );
+        }
+      } finally {
+        if (isMounted) {
+          setLoading(false);
+        }
+      }
+    };
+
+    loadLots();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  const cropOptions = useMemo(() => {
+    const uniqueCrops = Array.from(
+      new Set(lots.map((lot) => lot.crop).filter(Boolean))
+    ).sort((first, second) =>
+      first.localeCompare(second)
+    );
+
+    return ["All Crops", ...uniqueCrops];
+  }, [lots]);
+
+  const gradeOptions = useMemo(() => {
+    const uniqueGrades = Array.from(
+      new Set(lots.map((lot) => lot.grade).filter(Boolean))
+    ).sort((first, second) =>
+      first.localeCompare(second)
+    );
+
+    return ["All Grades", ...uniqueGrades];
+  }, [lots]);
+
   const getProduceCost = (lot) => {
     return lot.quantity * lot.price;
   };
 
-  /*
-    Landed cost = produce cost + estimated transportation
-  */
   const getLandedCost = (lot) => {
     return getProduceCost(lot) + lot.transportCost;
   };
 
-  /*
-    Landed cost per quintal
-  */
   const getLandedPricePerQuintal = (lot) => {
-    return getLandedCost(lot) / lot.quantity;
+    const landedCost = getLandedCost(lot);
+
+    if (!lot.quantity || landedCost === null) {
+      return null;
+    }
+
+    return landedCost / lot.quantity;
   };
 
   const filteredLots = useMemo(() => {
-    return availableLots.filter((lot) => {
-      const searchText = search.toLowerCase().trim();
+    const searchText = search.toLowerCase().trim();
+    const locationText = location.toLowerCase().trim();
+    const priceLimit = Number(maxPrice);
 
+    return lots.filter((lot) => {
       const matchesSearch =
         !searchText ||
         lot.crop.toLowerCase().includes(searchText) ||
         lot.variety.toLowerCase().includes(searchText) ||
         lot.location.toLowerCase().includes(searchText) ||
         lot.seller.toLowerCase().includes(searchText) ||
-        lot.id.toLowerCase().includes(searchText);
+        String(lot.id).toLowerCase().includes(searchText);
 
       const matchesCrop =
         crop === "All Crops" || lot.crop === crop;
@@ -185,13 +264,13 @@ export default function BrowseLotsPage({ user }) {
         grade === "All Grades" || lot.grade === grade;
 
       const matchesLocation =
-        !location ||
-        lot.location
-          .toLowerCase()
-          .includes(location.toLowerCase());
+        !locationText ||
+        lot.location.toLowerCase().includes(locationText);
 
       const matchesPrice =
-        !maxPrice || lot.price <= Number(maxPrice);
+        !maxPrice ||
+        (Number.isFinite(priceLimit) &&
+          lot.price <= priceLimit);
 
       return (
         matchesSearch &&
@@ -201,7 +280,14 @@ export default function BrowseLotsPage({ user }) {
         matchesPrice
       );
     });
-  }, [search, crop, grade, location, maxPrice]);
+  }, [
+    lots,
+    search,
+    crop,
+    grade,
+    location,
+    maxPrice,
+  ]);
 
   const clearFilters = () => {
     setSearch("");
@@ -215,37 +301,90 @@ export default function BrowseLotsPage({ user }) {
     setSelectedLot(lot);
     setShowRequestModal(false);
     setRequestSent(false);
+    setRequestQuantity(String(lot.quantity));
+    setRequestError("");
+    setPurchaseRequest(null);
   };
 
   const openRequest = (lot) => {
     setSelectedLot(lot);
     setShowRequestModal(true);
     setRequestSent(false);
+    setRequestQuantity(String(lot.quantity));
+    setRequestError("");
+    setPurchaseRequest(null);
   };
 
   const closeModal = () => {
+    if (requestSubmitting) {
+      return;
+    }
+
     setSelectedLot(null);
     setShowRequestModal(false);
     setRequestSent(false);
+    setRequestQuantity("");
+    setRequestError("");
+    setPurchaseRequest(null);
   };
 
-  const handleRequest = () => {
-    /*
-      Prototype behaviour.
-      In production this will create a purchase request
-      in the backend/database.
-    */
-    setRequestSent(true);
+  const handleRequest = async () => {
+    const quantity = Number(requestQuantity);
+
+    if (!selectedLot) {
+      return;
+    }
+
+    if (
+      !Number.isFinite(quantity) ||
+      quantity <= 0 ||
+      quantity > selectedLot.quantity
+    ) {
+      setRequestError(
+        `Quantity must be greater than 0 and cannot exceed ${selectedLot.quantity} quintals.`
+      );
+      return;
+    }
+
+    try {
+      setRequestSubmitting(true);
+      setRequestError("");
+
+      const response = await createPurchaseRequest({
+        lotId: selectedLot.id,
+        quantity,
+      });
+
+      if (!response?.success) {
+        throw new Error(
+          response?.message ||
+          "Unable to create the purchase request."
+        );
+      }
+
+      setPurchaseRequest(response.purchaseRequest || null);
+      setRequestSent(true);
+    } catch (error) {
+      setRequestError(
+        error?.message ||
+        "Unable to send the purchase request. Please try again."
+      );
+    } finally {
+      setRequestSubmitting(false);
+    }
   };
 
+  const requestedProduceCost = selectedLot
+    ? Number(requestQuantity || 0) * selectedLot.price
+    : 0;
+
+  const requestedLandedCost =
+    selectedLot?.transportCost === null
+      ? null
+      : requestedProduceCost + selectedLot.transportCost;
   return (
     <div className="w-full max-w-[1500px] mx-auto px-4 sm:px-6 lg:px-8 py-6 pb-10">
-
-      {/* =========================
-          PAGE HEADER
-      ========================== */}
       <div className="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-4 mb-6">
-
         <div>
           <p className="text-xs font-medium text-gray-500 mb-1">
             Buyer Marketplace
@@ -272,16 +411,9 @@ export default function BrowseLotsPage({ user }) {
         </div>
       </div>
 
-      {/* =========================
-          SEARCH + FILTERS
-      ========================== */}
       <div className="bg-white border border-gray-200 rounded-2xl p-4 mb-5">
-
         <div className="flex flex-col md:flex-row gap-3">
-
-          {/* SEARCH */}
           <div className="relative flex-1">
-
             <Search
               size={19}
               className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
@@ -290,7 +422,7 @@ export default function BrowseLotsPage({ user }) {
             <input
               type="text"
               value={search}
-              onChange={(e) => setSearch(e.target.value)}
+              onChange={(event) => setSearch(event.target.value)}
               placeholder="Search crop, lot ID, seller or location..."
               className="
                 w-full
@@ -310,7 +442,9 @@ export default function BrowseLotsPage({ user }) {
 
           <button
             type="button"
-            onClick={() => setShowFilters((prev) => !prev)}
+            onClick={() =>
+              setShowFilters((previous) => !previous)
+            }
             className="
               h-11
               px-4
@@ -347,11 +481,8 @@ export default function BrowseLotsPage({ user }) {
           </button>
         </div>
 
-        {/* FILTER PANEL */}
         {showFilters && (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mt-4 pt-4 border-t border-gray-100">
-
-            {/* CROP */}
             <div>
               <label className="block text-xs font-semibold text-gray-600 mb-1.5">
                 Crop
@@ -359,7 +490,7 @@ export default function BrowseLotsPage({ user }) {
 
               <select
                 value={crop}
-                onChange={(e) => setCrop(e.target.value)}
+                onChange={(event) => setCrop(event.target.value)}
                 className="
                   w-full
                   h-10
@@ -380,7 +511,6 @@ export default function BrowseLotsPage({ user }) {
               </select>
             </div>
 
-            {/* GRADE */}
             <div>
               <label className="block text-xs font-semibold text-gray-600 mb-1.5">
                 Quality / Grade
@@ -388,7 +518,7 @@ export default function BrowseLotsPage({ user }) {
 
               <select
                 value={grade}
-                onChange={(e) => setGrade(e.target.value)}
+                onChange={(event) => setGrade(event.target.value)}
                 className="
                   w-full
                   h-10
@@ -409,7 +539,6 @@ export default function BrowseLotsPage({ user }) {
               </select>
             </div>
 
-            {/* LOCATION */}
             <div>
               <label className="block text-xs font-semibold text-gray-600 mb-1.5">
                 Location
@@ -418,7 +547,9 @@ export default function BrowseLotsPage({ user }) {
               <input
                 type="text"
                 value={location}
-                onChange={(e) => setLocation(e.target.value)}
+                onChange={(event) =>
+                  setLocation(event.target.value)
+                }
                 placeholder="e.g. Gorakhpur"
                 className="
                   w-full
@@ -433,7 +564,6 @@ export default function BrowseLotsPage({ user }) {
               />
             </div>
 
-            {/* MAX PRICE */}
             <div>
               <label className="block text-xs font-semibold text-gray-600 mb-1.5">
                 Maximum Price / Quintal
@@ -441,8 +571,11 @@ export default function BrowseLotsPage({ user }) {
 
               <input
                 type="number"
+                min="0"
                 value={maxPrice}
-                onChange={(e) => setMaxPrice(e.target.value)}
+                onChange={(event) =>
+                  setMaxPrice(event.target.value)
+                }
                 placeholder="e.g. 5000"
                 className="
                   w-full
@@ -460,11 +593,7 @@ export default function BrowseLotsPage({ user }) {
         )}
       </div>
 
-      {/* =========================
-          RESULT SUMMARY
-      ========================== */}
       <div className="flex items-center justify-between mb-4">
-
         <p className="text-sm text-gray-600">
           <span className="font-semibold text-gray-900">
             {filteredLots.length}
@@ -482,295 +611,315 @@ export default function BrowseLotsPage({ user }) {
         </div>
       </div>
 
-      {/* =========================
-          LOT LIST
-      ========================== */}
-      <div className="space-y-4">
+      {loading ? (
+        <div className="bg-white border border-gray-200 rounded-2xl p-12 text-center">
+          <Package
+            size={36}
+            className="mx-auto text-gray-300 mb-3"
+          />
 
-        {filteredLots.length === 0 ? (
-          <div className="bg-white border border-gray-200 rounded-2xl p-10 text-center">
+          <h3 className="font-semibold text-gray-900">
+            Loading available lots...
+          </h3>
 
-            <Package
-              size={36}
-              className="mx-auto text-gray-300 mb-3"
-            />
+          <p className="text-sm text-gray-500 mt-1">
+            Fetching current marketplace listings.
+          </p>
+        </div>
+      ) : error ? (
+        <div className="bg-white border border-red-200 rounded-2xl p-10 text-center">
+          <X
+            size={36}
+            className="mx-auto text-red-400 mb-3"
+          />
 
-            <h3 className="font-semibold text-gray-900">
-              No matching lots found
-            </h3>
+          <h3 className="font-semibold text-red-700">
+            Unable to load lots
+          </h3>
 
-            <p className="text-sm text-gray-500 mt-1">
-              Try changing your search or filters.
-            </p>
+          <p className="text-sm text-gray-500 mt-1">
+            {error}
+          </p>
 
-            <button
-              type="button"
-              onClick={clearFilters}
-              className="mt-4 text-sm font-semibold text-green-700 hover:text-green-800"
-            >
-              Clear all filters
-            </button>
-          </div>
-        ) : (
-          filteredLots.map((lot) => {
-            const produceCost = getProduceCost(lot);
-            const landedCost = getLandedCost(lot);
-            const landedPerQuintal =
-              getLandedPricePerQuintal(lot);
+          <button
+            type="button"
+            onClick={() => window.location.reload()}
+            className="
+              mt-4
+              h-10
+              px-5
+              rounded-lg
+              bg-gray-900
+              text-white
+              text-sm
+              font-semibold
+              hover:bg-gray-800
+            "
+          >
+            Retry
+          </button>
+        </div>
+      ) : (
+        <div className="space-y-4">
+          {filteredLots.length === 0 ? (
+            <div className="bg-white border border-gray-200 rounded-2xl p-10 text-center">
+              <Package
+                size={36}
+                className="mx-auto text-gray-300 mb-3"
+              />
 
-            return (
-              <div
-                key={lot.id}
-                className="
-                  bg-white
-                  border
-                  border-gray-200
-                  rounded-2xl
-                  p-5
-                  hover:border-green-200
-                  transition
-                "
+              <h3 className="font-semibold text-gray-900">
+                No matching lots found
+              </h3>
+
+              <p className="text-sm text-gray-500 mt-1">
+                Try changing your search or filters.
+              </p>
+
+              <button
+                type="button"
+                onClick={clearFilters}
+                className="mt-4 text-sm font-semibold text-green-700 hover:text-green-800"
               >
+                Clear all filters
+              </button>
+            </div>
+          ) : (
+            filteredLots.map((lot) => {
+              const produceCost = getProduceCost(lot);
+              const landedCost = getLandedCost(lot);
+              const landedPerQuintal =
+                getLandedPricePerQuintal(lot);
 
-                {/* =========================
-                    LOT TOP
-                ========================== */}
-                <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4">
+              return (
+                <div
+                  key={lot.id}
+                  className="
+                    bg-white
+                    border
+                    border-gray-200
+                    rounded-2xl
+                    p-5
+                    hover:border-green-200
+                    transition
+                  "
+                >
+                  <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4">
+                    <div className="flex gap-4">
+                      <div
+                        className="
+                          h-12
+                          w-12
+                          shrink-0
+                          rounded-xl
+                          bg-green-50
+                          flex
+                          items-center
+                          justify-center
+                          text-green-700
+                        "
+                      >
+                        <Package size={23} />
+                      </div>
 
-                  <div className="flex gap-4">
+                      <div>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <h2 className="text-lg font-bold text-gray-900">
+                            {lot.crop}
+                          </h2>
 
-                    {/* ICON */}
-                    <div className="
-                      h-12
-                      w-12
-                      shrink-0
-                      rounded-xl
-                      bg-green-50
-                      flex
-                      items-center
-                      justify-center
-                      text-green-700
-                    ">
-                      <Package size={23} />
+                          <span className="px-2 py-0.5 rounded-full bg-green-50 text-green-700 text-xs font-semibold">
+                            {lot.grade}
+                          </span>
+
+                          <span className="px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 text-xs font-semibold">
+                            Verified Seller
+                          </span>
+                        </div>
+
+                        <p className="text-xs text-gray-500 mt-1">
+                          {lot.id}
+                          {lot.variety
+                            ? ` • ${lot.variety}`
+                            : ""}
+                        </p>
+
+                        <div className="flex flex-wrap gap-x-5 gap-y-2 mt-3 text-sm text-gray-600">
+                          <span className="flex items-center gap-1.5">
+                            <Package size={15} />
+                            {lot.quantity} Quintals
+                          </span>
+
+                          <span className="flex items-center gap-1.5">
+                            <MapPin size={15} />
+                            {lot.location}
+                          </span>
+
+                          <span className="flex items-center gap-1.5">
+                            <CalendarDays size={15} />
+                            Available {lot.availableDate}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="lg:text-right shrink-0">
+                      <p className="text-xl font-bold text-gray-900">
+                        {formatCurrency(lot.price)}
+                      </p>
+
+                      <p className="text-xs text-gray-500">
+                        crop price / quintal
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="border-t border-gray-100 my-4" />
+
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div className="rounded-xl bg-gray-50 p-4">
+                      <p className="text-xs text-gray-500 mb-1">
+                        Produce Cost
+                      </p>
+
+                      <p className="text-base font-bold text-gray-900">
+                        {formatCurrency(produceCost)}
+                      </p>
+
+                      <p className="text-xs text-gray-500 mt-1">
+                        {lot.quantity} Quintals ×{" "}
+                        {formatCurrency(lot.price)}
+                      </p>
+                    </div>
+
+                    <div className="rounded-xl bg-gray-50 p-4">
+                      <p className="text-xs text-gray-500 mb-1">
+                        Transportation
+                      </p>
+
+                      <p className="text-sm font-semibold text-gray-800 flex items-center gap-2">
+                        <Truck
+                          size={16}
+                          className="text-gray-500"
+                        />
+                        {lot.transport}
+                      </p>
+
+                      <p className="text-sm font-bold text-gray-900 mt-1">
+                        {lot.transportCost > 0
+                          ? `Estimated: ${formatCurrency(
+                            lot.transportCost
+                          )}`
+                          : "Cost calculated during procurement"}
+                      </p>
+                    </div>
+
+                    <div className="rounded-xl bg-green-50 border border-green-100 p-4">
+                      <p className="text-xs text-green-700 mb-1">
+                        Estimated Landed Cost
+                      </p>
+
+                      <p className="text-lg font-bold text-gray-900">
+                        {landedCost === null
+                          ? "Not calculated"
+                          : formatCurrency(landedCost)}
+                      </p>
+
+                      <p className="text-xs text-green-700 mt-1">
+                        {landedPerQuintal === null
+                          ? "Transportation cost pending"
+                          : `${formatCurrency(landedPerQuintal)} / quintal`}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+                    <div>
+                      <p className="text-xs text-gray-500 mb-1">
+                        Seller
+                      </p>
+
+                      <p className="text-sm font-semibold text-gray-900">
+                        {lot.seller}
+                      </p>
+
+                      <div className="flex items-center gap-1 mt-1 text-xs text-gray-500">
+                        <Star
+                          size={13}
+                          className="text-amber-500"
+                        />
+
+                        {lot.rating
+                          ? `${lot.rating} rating • `
+                          : ""}
+                        {lot.sellerType}
+                      </div>
                     </div>
 
                     <div>
-
-                      {/* CROP + BADGES */}
-                      <div className="flex flex-wrap items-center gap-2">
-
-                        <h2 className="text-lg font-bold text-gray-900">
-                          {lot.crop}
-                        </h2>
-
-                        <span className="px-2 py-0.5 rounded-full bg-green-50 text-green-700 text-xs font-semibold">
-                          {lot.grade}
-                        </span>
-
-                        <span className="px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 text-xs font-semibold">
-                          Verified Seller
-                        </span>
-                      </div>
-
-                      {/* LOT ID */}
-                      <p className="text-xs text-gray-500 mt-1">
-                        {lot.id} • {lot.variety}
+                      <p className="text-xs text-gray-500 mb-1">
+                        Lot Description
                       </p>
 
-                      {/* BASIC DETAILS */}
-                      <div className="flex flex-wrap gap-x-5 gap-y-2 mt-3 text-sm text-gray-600">
-
-                        <span className="flex items-center gap-1.5">
-                          <Package size={15} />
-                          {lot.quantity} Quintals
-                        </span>
-
-                        <span className="flex items-center gap-1.5">
-                          <MapPin size={15} />
-                          {lot.location}
-                        </span>
-
-                        <span className="flex items-center gap-1.5">
-                          <CalendarDays size={15} />
-                          Available {lot.availableDate}
-                        </span>
-
-                      </div>
+                      <p className="text-sm text-gray-600 line-clamp-2">
+                        {lot.description}
+                      </p>
                     </div>
                   </div>
 
-                  {/* CROP PRICE */}
-                  <div className="lg:text-right shrink-0">
+                  <div className="flex flex-col sm:flex-row sm:justify-end gap-2 mt-5">
+                    <button
+                      type="button"
+                      onClick={() => openDetails(lot)}
+                      className="
+                        h-10
+                        px-4
+                        rounded-lg
+                        border
+                        border-gray-200
+                        text-sm
+                        font-semibold
+                        text-gray-700
+                        hover:bg-gray-50
+                        flex
+                        items-center
+                        justify-center
+                        gap-2
+                      "
+                    >
+                      View Details
+                      <ArrowRight size={16} />
+                    </button>
 
-                    <p className="text-xl font-bold text-gray-900">
-                      {formatCurrency(lot.price)}
-                    </p>
-
-                    <p className="text-xs text-gray-500">
-                      crop price / quintal
-                    </p>
+                    <button
+                      type="button"
+                      onClick={() => openRequest(lot)}
+                      className="
+                        h-10
+                        px-5
+                        rounded-lg
+                        bg-green-600
+                        text-white
+                        text-sm
+                        font-semibold
+                        hover:bg-green-700
+                        transition
+                      "
+                    >
+                      Request to Buy
+                    </button>
                   </div>
                 </div>
+              );
+            })
+          )}
+        </div>
+      )}
 
-                {/* DIVIDER */}
-                <div className="border-t border-gray-100 my-4" />
-
-                {/* =========================
-                    COST BREAKDOWN
-                ========================== */}
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-
-                  {/* PRODUCE COST */}
-                  <div className="rounded-xl bg-gray-50 p-4">
-
-                    <p className="text-xs text-gray-500 mb-1">
-                      Produce Cost
-                    </p>
-
-                    <p className="text-base font-bold text-gray-900">
-                      {formatCurrency(produceCost)}
-                    </p>
-
-                    <p className="text-xs text-gray-500 mt-1">
-                      {lot.quantity} Quintals ×{" "}
-                      {formatCurrency(lot.price)}
-                    </p>
-                  </div>
-
-                  {/* TRANSPORT COST */}
-                  <div className="rounded-xl bg-gray-50 p-4">
-
-                    <p className="text-xs text-gray-500 mb-1">
-                      Transportation
-                    </p>
-
-                    <p className="text-sm font-semibold text-gray-800 flex items-center gap-2">
-                      <Truck size={16} className="text-gray-500" />
-                      {lot.transport}
-                    </p>
-
-                    <p className="text-sm font-bold text-gray-900 mt-1">
-                      Estimated: {formatCurrency(lot.transportCost)}
-                    </p>
-                  </div>
-
-                  {/* LANDED COST */}
-                  <div className="rounded-xl bg-green-50 border border-green-100 p-4">
-
-                    <p className="text-xs text-green-700 mb-1">
-                      Estimated Landed Cost
-                    </p>
-
-                    <p className="text-lg font-bold text-gray-900">
-                      {formatCurrency(landedCost)}
-                    </p>
-
-                    <p className="text-xs text-green-700 mt-1">
-                      {formatCurrency(landedPerQuintal)} / quintal
-                    </p>
-                  </div>
-                </div>
-
-                {/* =========================
-                    SELLER INFORMATION
-                ========================== */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
-
-                  <div>
-                    <p className="text-xs text-gray-500 mb-1">
-                      Seller
-                    </p>
-
-                    <p className="text-sm font-semibold text-gray-900">
-                      {lot.seller}
-                    </p>
-
-                    <div className="flex items-center gap-1 mt-1 text-xs text-gray-500">
-
-                      <Star
-                        size={13}
-                        className="fill-current text-amber-500"
-                      />
-
-                      {lot.rating} rating • {lot.sellerType}
-                    </div>
-                  </div>
-
-                  <div>
-                    <p className="text-xs text-gray-500 mb-1">
-                      Lot Description
-                    </p>
-
-                    <p className="text-sm text-gray-600 line-clamp-2">
-                      {lot.description}
-                    </p>
-                  </div>
-                </div>
-
-                {/* =========================
-                    ACTIONS
-                ========================== */}
-                <div className="flex flex-col sm:flex-row sm:justify-end gap-2 mt-5">
-
-                  <button
-                    type="button"
-                    onClick={() => openDetails(lot)}
-                    className="
-                      h-10
-                      px-4
-                      rounded-lg
-                      border
-                      border-gray-200
-                      text-sm
-                      font-semibold
-                      text-gray-700
-                      hover:bg-gray-50
-                      flex
-                      items-center
-                      justify-center
-                      gap-2
-                    "
-                  >
-                    View Details
-                    <ArrowRight size={16} />
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => openRequest(lot)}
-                    className="
-                      h-10
-                      px-5
-                      rounded-lg
-                      bg-green-600
-                      text-white
-                      text-sm
-                      font-semibold
-                      hover:bg-green-700
-                      transition
-                    "
-                  >
-                    Request to Buy
-                  </button>
-
-                </div>
-              </div>
-            );
-          })
-        )}
-      </div>
-
-      {/* ==================================================
-          DETAILS MODAL
-      ================================================== */}
       {selectedLot && !showRequestModal && (
         <div className="fixed inset-0 z-[100] bg-black/40 flex items-center justify-center p-4">
-
           <div className="bg-white rounded-2xl w-full max-w-xl max-h-[90vh] overflow-y-auto">
-
-            {/* MODAL HEADER */}
             <div className="p-5 border-b border-gray-100 flex items-center justify-between">
-
               <div>
                 <h2 className="text-xl font-bold text-gray-900">
                   {selectedLot.crop} Lot Details
@@ -791,12 +940,8 @@ export default function BrowseLotsPage({ user }) {
               </button>
             </div>
 
-            {/* MODAL BODY */}
             <div className="p-5 space-y-5">
-
-              {/* BASIC INFO */}
               <div className="grid grid-cols-2 gap-4">
-
                 <div className="bg-gray-50 rounded-xl p-3">
                   <p className="text-xs text-gray-500">
                     Available Quantity
@@ -838,7 +983,6 @@ export default function BrowseLotsPage({ user }) {
                 </div>
               </div>
 
-              {/* SELLER */}
               <div>
                 <p className="text-xs text-gray-500">
                   Seller
@@ -849,11 +993,13 @@ export default function BrowseLotsPage({ user }) {
                 </p>
 
                 <p className="text-sm text-gray-500 mt-1">
-                  {selectedLot.sellerType} • {selectedLot.rating} rating
+                  {selectedLot.sellerType}
+                  {selectedLot.rating
+                    ? ` • ${selectedLot.rating} rating`
+                    : ""}
                 </p>
               </div>
 
-              {/* LOCATION */}
               <div>
                 <p className="text-xs text-gray-500">
                   Pickup Location
@@ -865,22 +1011,23 @@ export default function BrowseLotsPage({ user }) {
                 </p>
               </div>
 
-              {/* TRANSPORT */}
               <div className="bg-gray-50 rounded-xl p-4">
-
                 <p className="text-xs text-gray-500">
                   Transportation
                 </p>
 
                 <div className="flex items-center justify-between gap-3 mt-2">
-
                   <p className="text-sm font-medium text-gray-800 flex items-center gap-2">
                     <Truck size={17} />
                     {selectedLot.transport}
                   </p>
 
                   <p className="text-sm font-bold text-gray-900">
-                    {formatCurrency(selectedLot.transportCost)}
+                    {selectedLot.transportCost > 0
+                      ? formatCurrency(
+                        selectedLot.transportCost
+                      )
+                      : "Calculated during procurement"}
                   </p>
                 </div>
 
@@ -889,9 +1036,7 @@ export default function BrowseLotsPage({ user }) {
                 </p>
               </div>
 
-              {/* COST SUMMARY */}
               <div className="border border-gray-200 rounded-xl overflow-hidden">
-
                 <div className="px-4 py-3 bg-gray-50 border-b border-gray-200">
                   <p className="text-sm font-semibold text-gray-900">
                     Estimated Cost Summary
@@ -899,7 +1044,6 @@ export default function BrowseLotsPage({ user }) {
                 </div>
 
                 <div className="p-4 space-y-3">
-
                   <div className="flex justify-between text-sm">
                     <span className="text-gray-500">
                       Produce Cost
@@ -918,14 +1062,15 @@ export default function BrowseLotsPage({ user }) {
                     </span>
 
                     <span className="font-medium text-gray-900">
-                      {formatCurrency(
-                        selectedLot.transportCost
-                      )}
+                      {selectedLot.transportCost > 0
+                        ? formatCurrency(
+                          selectedLot.transportCost
+                        )
+                        : "Calculated during procurement"}
                     </span>
                   </div>
 
                   <div className="border-t border-gray-100 pt-3 flex justify-between">
-
                     <span className="text-sm font-semibold text-gray-900">
                       Estimated Landed Cost
                     </span>
@@ -946,22 +1091,24 @@ export default function BrowseLotsPage({ user }) {
                 </div>
               </div>
 
-              {/* DESCRIPTION */}
               <div>
                 <p className="text-xs text-gray-500">
                   Description
                 </p>
 
-                <p className="text-sm text-gray-600 mt-1">
-                  {selectedLot.description}
-                </p>
+                {selectedLot.description ? (
+                  <p className="text-sm text-gray-600 mt-1">
+                    {selectedLot.description}
+                  </p>
+                ) : (
+                  <p className="text-sm text-gray-500 mt-1">
+                    No description provided by the seller.
+                  </p>
+                )}
               </div>
 
-              {/* PROTECTED PAYMENT */}
               <div className="p-4 rounded-xl bg-green-50 border border-green-100">
-
                 <div className="flex items-start gap-3">
-
                   <ShieldCheck
                     size={20}
                     className="text-green-600 mt-0.5"
@@ -980,7 +1127,8 @@ export default function BrowseLotsPage({ user }) {
                 </div>
               </div>
 
-              {/* ACTION */}
+
+
               <button
                 type="button"
                 onClick={() => openRequest(selectedLot)}
@@ -1001,17 +1149,10 @@ export default function BrowseLotsPage({ user }) {
         </div>
       )}
 
-      {/* ==================================================
-          REQUEST MODAL
-      ================================================== */}
       {showRequestModal && selectedLot && (
         <div className="fixed inset-0 z-[100] bg-black/40 flex items-center justify-center p-4">
-
           <div className="bg-white rounded-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
-
-            {/* HEADER */}
             <div className="p-5 border-b border-gray-100 flex items-center justify-between">
-
               <div>
                 <h2 className="text-xl font-bold text-gray-900">
                   Request to Buy
@@ -1034,8 +1175,6 @@ export default function BrowseLotsPage({ user }) {
 
             {!requestSent ? (
               <div className="p-5">
-
-                {/* BUYER */}
                 <div className="mb-4">
                   <p className="text-xs text-gray-500">
                     Buyer
@@ -1046,9 +1185,7 @@ export default function BrowseLotsPage({ user }) {
                   </p>
                 </div>
 
-                {/* LOT SUMMARY */}
                 <div className="bg-gray-50 rounded-xl p-4 mb-5">
-
                   <div className="flex justify-between">
                     <span className="text-sm text-gray-500">
                       Crop
@@ -1081,45 +1218,44 @@ export default function BrowseLotsPage({ user }) {
 
                   <div className="flex justify-between mt-2">
                     <span className="text-sm text-gray-500">
-                      Estimated transport
+                      Transportation
                     </span>
 
                     <span className="text-sm font-semibold">
-                      {formatCurrency(selectedLot.transportCost)}
+                      {selectedLot.transport}
                     </span>
                   </div>
 
                   <div className="border-t border-gray-200 mt-3 pt-3 flex justify-between">
-
                     <span className="text-sm font-semibold">
-                      Estimated landed cost
+                      Estimated purchase cost
                     </span>
 
                     <span className="text-sm font-bold text-green-700">
-                      {formatCurrency(
-                        getLandedCost(selectedLot)
-                      )}
+                      {requestedLandedCost === null
+                        ? "Produce cost only"
+                        : formatCurrency(requestedLandedCost)}
                     </span>
                   </div>
 
                   <p className="text-right text-xs text-gray-500 mt-1">
-                    {formatCurrency(
-                      getLandedPricePerQuintal(selectedLot)
-                    )}{" "}
-                    / quintal
+                    Transportation cost is calculated during procurement.
                   </p>
                 </div>
 
-                {/* QUANTITY */}
                 <label className="block text-sm font-semibold text-gray-700 mb-2">
                   Quantity you want to purchase
                 </label>
 
                 <input
                   type="number"
-                  defaultValue={selectedLot.quantity}
-                  min="1"
+                  value={requestQuantity}
+                  onChange={(event) =>
+                    setRequestQuantity(event.target.value)
+                  }
+                  min="0.01"
                   max={selectedLot.quantity}
+                  step="0.01"
                   className="
                     w-full
                     h-11
@@ -1138,11 +1274,8 @@ export default function BrowseLotsPage({ user }) {
                   Maximum available: {selectedLot.quantity} Quintals
                 </p>
 
-                {/* PAYMENT */}
                 <div className="mt-4 p-4 rounded-xl bg-green-50 border border-green-100">
-
                   <div className="flex items-start gap-2">
-
                     <ShieldCheck
                       size={18}
                       className="text-green-600 mt-0.5"
@@ -1161,59 +1294,69 @@ export default function BrowseLotsPage({ user }) {
                   </div>
                 </div>
 
-                {/* SUBMIT */}
+                {requestError && (
+                  <div className="mt-4 rounded-xl border border-red-200 bg-red-50 p-3">
+                    <p className="text-sm font-medium text-red-700">
+                      {requestError}
+                    </p>
+                  </div>
+                )}
+
                 <button
                   type="button"
                   onClick={handleRequest}
-                  className="
-                    w-full
-                    h-11
+                  disabled={
+                    requestSubmitting ||
+                    !requestQuantity ||
+                    !Number.isFinite(Number(requestQuantity)) ||
+                    Number(requestQuantity) <= 0 ||
+                    Number(requestQuantity) > selectedLot.quantity
+                  }
+                  className=" w-full h-11
                     mt-5
-                    rounded-xl
-                    bg-green-600
-                    text-white
-                    font-semibold
-                    hover:bg-green-700
-                  "
-                >
-                  Send Purchase Request
+                   rounded-xl
+                   bg-green-600
+                   text-white
+                   font-semibold
+                   hover:bg-green-700
+                   disabled:opacity-50
+                   disabled:cursor-not-allowe " >
+                  {requestSubmitting
+                    ? "Sending Request..."
+                    : "Send Purchase Request"}
                 </button>
-
               </div>
             ) : (
-              /* =========================
-                 REQUEST SUCCESS
-              ========================== */
               <div className="p-8 text-center">
-
-                <div className="
-                  h-14
-                  w-14
-                  mx-auto
-                  rounded-full
-                  bg-green-50
-                  flex
-                  items-center
-                  justify-center
-                  text-green-600
-                ">
+                <div
+                  className="
+                    h-14
+                    w-14
+                    mx-auto
+                    rounded-full
+                    bg-green-50
+                    flex
+                    items-center
+                    justify-center
+                    text-green-600
+                  "
+                >
                   <CheckCircle2 size={30} />
                 </div>
 
                 <h3 className="text-xl font-bold text-gray-900 mt-4">
-                  Purchase Request Sent
+                  Purchase Request Ready
                 </h3>
 
                 <p className="text-sm text-gray-500 mt-2">
-                  Your request for{" "}
+                  Your purchase request has been submitted successfully for{" "}
                   <span className="font-semibold text-gray-800">
                     {selectedLot.id}
-                  </span>{" "}
-                  has been recorded.
+                  </span>
+                  .
                 </p>
 
                 <div className="mt-4 bg-gray-50 rounded-xl p-4 text-left">
-
                   <div className="flex justify-between text-sm">
                     <span className="text-gray-500">
                       Crop
@@ -1226,35 +1369,43 @@ export default function BrowseLotsPage({ user }) {
 
                   <div className="flex justify-between text-sm mt-2">
                     <span className="text-gray-500">
-                      Estimated landed cost
+                      Requested quantity
                     </span>
 
-                    <span className="font-semibold text-green-700">
-                      {formatCurrency(
-                        getLandedCost(selectedLot)
-                      )}
+                    <span className="font-semibold">
+                      {requestQuantity} Quintals
                     </span>
                   </div>
 
                   <div className="flex justify-between text-sm mt-2">
                     <span className="text-gray-500">
-                      Payment
+                      Estimated cost
                     </span>
 
                     <span className="font-semibold text-green-700">
-                      Protected
+                      {requestedLandedCost === null
+                        ? formatCurrency(requestedProduceCost)
+                        : formatCurrency(requestedLandedCost)}
                     </span>
                   </div>
-                </div>
 
-                <p className="text-xs text-gray-400 mt-3">
-                  The seller can review the request and respond.
-                </p>
+                  {purchaseRequest?._id && (
+                    <div className="flex justify-between text-sm mt-2">
+                      <span className="text-gray-500">
+                        Request ID
+                      </span>
 
-                <button
-                  type="button"
-                  onClick={closeModal}
-                  className="
+                      <span className="font-semibold text-gray-900">
+                        {purchaseRequest._id}
+                      </span>
+                    </div>
+                  )}
+
+
+                  <button
+                    type="button"
+                    onClick={closeModal}
+                    className="
                     mt-6
                     h-10
                     px-6
@@ -1264,9 +1415,10 @@ export default function BrowseLotsPage({ user }) {
                     text-sm
                     font-semibold
                   "
-                >
-                  Done
-                </button>
+                  >
+                    Done
+                  </button>
+                </div>
               </div>
             )}
           </div>

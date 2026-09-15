@@ -1,7 +1,7 @@
 import jwt from "jsonwebtoken";
 import AppError from "../utils/AppError.js";
 
-const protect = (req, res, next) => {
+export const protect = (req, res, next) => {
   const authHeader = req.headers.authorization;
 
   if (!authHeader || !authHeader.startsWith("Bearer ")) {
@@ -13,7 +13,10 @@ const protect = (req, res, next) => {
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
-    req.user = decoded;
+    req.user = {
+      ...decoded,
+      id: decoded.id || decoded.userId || decoded._id,
+    };
 
     next();
   } catch (error) {
@@ -24,12 +27,10 @@ const protect = (req, res, next) => {
 // role-based authorization
 export const authorize = (...allowedRoles) => {
   return (req, res, next) => {
-    // ensure authentication middleware ran first
     if (!req.user) {
       return next(new AppError("Authentication required", 401));
     }
 
-    // check whether user's role is allowed
     if (!allowedRoles.includes(req.user.role)) {
       return next(new AppError("Access denied", 403));
     }

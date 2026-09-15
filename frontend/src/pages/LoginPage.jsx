@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { loginUser } from "../api/auth.api";
 import {
   Sprout,
   UserRound,
@@ -50,21 +51,8 @@ export default function LoginPage({ onLogin }) {
   }
 
   const validateForm = () => {
-    if (name.trim().length < 2) {
-      return 'Please enter your name.'
-    }
-
     if (!/^[6-9][0-9]{9}$/.test(phone)) {
       return 'Please enter a valid 10 digit mobile number.'
-    }
-
-    if (
-      (userType === 'buyer' || userType === 'fpo') &&
-      companyName.trim().length < 2
-    ) {
-      return userType === 'buyer'
-        ? 'Please enter your company / organization name.'
-        : 'Please enter your FPO / organization name.'
     }
 
     if (password.length < 6) {
@@ -75,80 +63,71 @@ export default function LoginPage({ onLogin }) {
   }
 
   const handleLogin = async (e) => {
-    e.preventDefault()
+    e.preventDefault();
 
-    setError('')
-
-    const validationError = validateForm()
-
-    if (validationError) {
-      setError(validationError)
-      return
+    if (loading) {
+      return;
     }
 
-    setLoading(true)
+    setError("");
+
+    const validationError = validateForm();
+
+    if (validationError) {
+      setError(validationError);
+      return;
+    }
+
+    setLoading(true);
 
     try {
-      const response = await fetch('/api/auth/login', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          mobile: phone,
-          password,
-        }),
-      })
+      const response = await loginUser({
+        mobile: phone,
+        password,
+      });
 
-      let data = {}
-
-      try {
-        data = await response.json()
-      } catch {
-        data = {}
+      if (
+        !response?.success ||
+        !response?.token ||
+        !response?.user
+      ) {
+        throw new Error(
+          response?.message || "Login failed. Please try again."
+        );
       }
 
-      if (!response.ok || !data.success || !data.token || !data.user) {
-        setError(data.message || 'Login failed.')
-        return
-      }
-
-      const backendUser = data.user
+      const backendUser = response.user;
 
       const user = {
         id: backendUser.id,
-        name: backendUser.name || name.trim(),
-        companyName:
-          backendUser.organizationName ||
-          ((userType === 'buyer' || userType === 'fpo')
-            ? companyName.trim()
-            : ''),
-        email: backendUser.email || '',
-        role: backendUser.role || userType,
-        location: backendUser.village || '',
-        phone: backendUser.mobile || phone,
-        district: backendUser.district || '',
-        state: backendUser.state || '',
-      }
+        name: backendUser.name || "",
+        companyName: backendUser.organizationName || "",
+        email: backendUser.email || "",
+        role: backendUser.role,
+        location: backendUser.village || "",
+        phone: backendUser.mobile || "",
+        district: backendUser.district || "",
+        state: backendUser.state || "",
+      };
 
-      localStorage.setItem('bf_token', data.token)
-      localStorage.setItem('bf_logged_in', 'true')
-      localStorage.setItem('bf_user_role', user.role)
+      localStorage.setItem("bf_auth_token", response.token);
+      localStorage.setItem("bf_logged_in", "true");
+      localStorage.setItem("bf_user_role", user.role);
       localStorage.setItem(
-        'bf_registered_user',
+        "bf_registered_user",
         JSON.stringify(user)
-      )
+      );
 
-      onLogin(user.role, user)
+      onLogin(user.role, user);
     } catch (error) {
-      console.error('Login error:', error)
       setError(
-        'Unable to connect to the server. Please try again.'
-      )
+        error?.message ||
+        "Unable to connect to the server. Please try again."
+      );
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }
+  };
 
   const speak = () => {
     if (!('speechSynthesis' in window)) return
@@ -297,11 +276,10 @@ export default function LoginPage({ onLogin }) {
                   key={role.id}
                   type="button"
                   onClick={() => handleUserTypeChange(role.id)}
-                  className={`min-h-[88px] rounded-xl border-2 flex flex-col items-center justify-center transition-all ${
-                    active
+                  className={`min-h-[88px] rounded-xl border-2 flex flex-col items-center justify-center transition-all ${active
                       ? 'border-primary-600 bg-primary-50 text-primary-700 shadow-md'
                       : 'border-gray-200 bg-white/70 text-gray-600 hover:border-primary-300 hover:bg-primary-50/50'
-                  }`}
+                    }`}
                 >
                   <Icon
                     size={25}

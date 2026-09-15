@@ -25,15 +25,14 @@ import NotificationsSection from "../features/settings/components/NotificationsS
 import LanguageSection from "../features/settings/components/LanguageSection";
 import HelpSupportSection from "../features/settings/components/HelpSupportSection";
 import AboutSection from "../features/settings/components/AboutSection";
-
-import ProfileModal from "../features/settings/modals/ProfileModal";
-import BusinessModal from "../features/settings/modals/BusinessModal";
-import DocumentsModal from "../features/settings/modals/DocumentsModal";
-import VerificationModal from "../features/settings/modals/VerificationModal";
-import PreferencesModal from "../features/settings/modals/PreferencesModal";
-import PaymentModal from "../features/settings/modals/PaymentModal";
-import ProtectedPaymentModal from "../features/settings/modals/ProtectedPaymentModal";
-import PaymentHistoryModal from "../features/settings/modals/PaymentHistoryModal";
+import ProfileModal from "../features/settings/components/ProfileModal";
+import BusinessModal from "../features/settings/components/BusinessModal";
+import DocumentsModal from "../features/settings/components/DocumentsModal";
+import VerificationModal from "../features/settings/components/VerificationModal";
+import PreferencesModal from "../features/settings/components/PreferencesModal";
+import PaymentModal from "../features/settings/components/PaymentModal";
+import ProtectedPaymentModal from "../features/settings/components/ProtectedPaymentModal";
+import PaymentHistoryModal from "../features/settings/components/PaymentHistoryModal";
 // Main Component
 
 export default function SettingsPage({ onLogout, user }) {

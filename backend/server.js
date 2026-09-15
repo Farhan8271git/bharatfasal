@@ -8,7 +8,8 @@ import cors from "cors";
 import mandiRoutes from "./routes/mandi.routes.js";
 import authRoutes from "./routes/auth.routes.js";
 import verificationRoutes from "./routes/verifications.routes.js";
-
+import lotRoutes from "./routes/lot.routes.js";
+import purchaseRequestRoutes from "./routes/purchaseRequest.routes.js";
 import connectDB from "./config/db.js";
 
 const app = express();
@@ -42,6 +43,9 @@ app.use("/api/mandi-prices", mandiRoutes);
 
 app.use("/api/verifications", verificationRoutes);
 
+app.use("/api/lots", lotRoutes);
+
+app.use( "/api/purchase-requests", purchaseRequestRoutes);
 
 app.use((err, req, res, next) => {
   console.error("Global error:", err);
