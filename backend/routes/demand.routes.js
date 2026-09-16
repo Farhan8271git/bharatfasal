@@ -3,6 +3,7 @@ import express from "express";
 import {
   createDemandController,
   getBuyerDemandsController,
+  getMarketDemandsController,
   getDemandByIdController,
   cancelDemandController,
 } from "../controllers/demand.controller.js";
@@ -14,11 +15,35 @@ import protect, {
 const router = express.Router();
 
 router.use(protect);
-router.use(authorize("buyer"));
 
-router.post("/", createDemandController);
-router.get("/my", getBuyerDemandsController);
-router.get("/:id", getDemandByIdController);
-router.delete("/:id", cancelDemandController);
+router.get(
+  "/market",
+  authorize("farmer", "fpo"),
+  getMarketDemandsController
+);
+
+router.post(
+  "/",
+  authorize("buyer"),
+  createDemandController
+);
+
+router.get(
+  "/my",
+  authorize("buyer"),
+  getBuyerDemandsController
+);
+
+router.get(
+  "/:id",
+  authorize("buyer"),
+  getDemandByIdController
+);
+
+router.delete(
+  "/:id",
+  authorize("buyer"),
+  cancelDemandController
+);
 
 export default router;

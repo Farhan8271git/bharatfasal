@@ -12,6 +12,8 @@ import lotRoutes from "./routes/lot.routes.js";
 import purchaseRequestRoutes from "./routes/purchaseRequest.routes.js";
 import orderRoutes from "./routes/order.routes.js";
 import demandRoutes from "./routes/demand.routes.js";
+import ratingRoutes from "./routes/rating.routes.js";
+
 
 import connectDB from "./config/db.js";
 
@@ -47,6 +49,9 @@ app.use("/api/lots", lotRoutes);
 app.use("/api/purchase-requests", purchaseRequestRoutes);
 app.use("/api/orders", orderRoutes);
 app.use("/api/demands", demandRoutes);
+app.use("/api/ratings", ratingRoutes);
+
+
 
 app.use((err, req, res, next) => {
   console.error("Global error:", err);

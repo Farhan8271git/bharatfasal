@@ -1,6 +1,7 @@
 import {
   createDemand,
   getBuyerDemands,
+  getMarketDemands,
   getDemandById,
   cancelDemand,
 } from "../services/demand.service.js";
@@ -114,6 +115,30 @@ export const cancelDemandController = async (req, res) => {
       message:
         error?.message ||
         "Unable to cancel buyer demand.",
+    });
+  }
+}; 
+
+
+export const getMarketDemandsController = async (req, res) => {
+  try {
+    const result = await getMarketDemands({
+      status: req.query.status || "active",
+      page: req.query.page,
+      limit: req.query.limit,
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: "Market demands retrieved successfully.",
+      ...result,
+    });
+  } catch (error) {
+    return res.status(getErrorStatus(error)).json({
+      success: false,
+      message:
+        error?.message ||
+        "Unable to retrieve market demands.",
     });
   }
 };

@@ -145,6 +145,7 @@ const getBuyerDemands = async ({
   }
 
   const currentPage = Math.max(Number(page) || 1, 1);
+
   const pageLimit = Math.min(
     Math.max(Number(limit) || 20, 1),
     100
@@ -156,6 +157,68 @@ const getBuyerDemands = async ({
 
   if (status) {
     filter.status = status;
+  }
+
+  const [demands, total] = await Promise.all([
+    Demand.find(filter)
+      .populate(
+        "buyerId",
+        "name organizationName mobile email businessType district state"
+      )
+      .sort({ createdAt: -1 })
+      .skip((currentPage - 1) * pageLimit)
+      .limit(pageLimit)
+      .lean(),
+
+    Demand.countDocuments(filter),
+  ]);
+
+  return {
+    demands,
+    pagination: {
+      page: currentPage,
+      limit: pageLimit,
+      total,
+      totalPages: Math.ceil(total / pageLimit),
+    },
+  };
+};
+
+const getMarketDemands = async ({
+  status = "active",
+  page = 1,
+  limit = 20,
+}) => {
+  const currentPage = Math.max(Number(page) || 1, 1);
+
+  const pageLimit = Math.min(
+    Math.max(Number(limit) || 20, 1),
+    100
+  );
+
+  const normalizedStatus = String(status || "active")
+    .trim()
+    .toLowerCase();
+
+  const allowedStatuses = [
+    "active",
+    "fulfilled",
+    "cancelled",
+    "expired",
+  ];
+
+  if (!allowedStatuses.includes(normalizedStatus)) {
+    throw new Error("Demand status is invalid.");
+  }
+
+  const filter = {
+    status: normalizedStatus,
+  };
+
+  if (normalizedStatus === "active") {
+    filter.deadline = {
+      $gt: new Date(),
+    };
   }
 
   const [demands, total] = await Promise.all([
@@ -258,6 +321,7 @@ const cancelDemand = async ({
 export {
   createDemand,
   getBuyerDemands,
+  getMarketDemands,
   getDemandById,
   cancelDemand,
   BUYER_ROLE,

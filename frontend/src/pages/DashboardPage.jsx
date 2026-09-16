@@ -21,6 +21,7 @@ import PriceCard from "../components/PriceCard";
 import { getGreeting, formatCurrency } from "../utils/formatters";
 import { getMyLots } from "../api/lots.api";
 import { getSellerPurchaseRequests } from "../api/purchaseRequests.api";
+import { getSellerOrders } from "../api/orders.api";
 
 export default function DashboardPage({ user }) {
   const { t, i18n } = useTranslation();
@@ -30,7 +31,9 @@ export default function DashboardPage({ user }) {
   const [priceAlerts, setPriceAlerts] = useState([]);
   const [activeLots, setActiveLots] = useState([]);
   const [sellerRequests, setSellerRequests] = useState([]);
+  const [sellerOrders, setSellerOrders] = useState([]);
   const [isLoadingLots, setIsLoadingLots] = useState(true);
+  const [isLoadingOrders, setIsLoadingOrders] = useState(true);
 
   const previousPricesRef = useRef({});
 
@@ -71,11 +74,6 @@ export default function DashboardPage({ user }) {
       storageLogistics: "Storage & Logistics",
       today: "Today",
       yesterday: "Yesterday",
-      news1:
-        "Government announces 5% increase in MSP for Kharif 2026-27 season",
-      news2:
-        "APMC reforms: Direct selling to processors now allowed in 12 states",
-      news3: "Cold storage capacity increased by 20% in Maharashtra",
       sellConfidence: "Sell with greater confidence",
       trackActivity:
         "Track orders, payments and buyer activity from one place.",
@@ -329,12 +327,31 @@ export default function DashboardPage({ user }) {
     return Math.max(...prices);
   };
 
+  const getPendingPaymentAmount = () => {
+    return sellerOrders
+      .filter(
+        (order) =>
+          order?.paymentStatus === "pending" &&
+          !["cancelled", "disputed"].includes(order?.status)
+      )
+      .reduce(
+        (total, order) =>
+          total + (Number(order?.totalAmount) || 0),
+        0
+      );
+  };
+
   useEffect(() => {
     const fetchDashboardData = async () => {
       setIsLoadingLots(true);
+      setIsLoadingOrders(true);
 
       try {
-        const [lotsResponse, requestsResponse] = await Promise.all([
+        const [
+          lotsResponse,
+          requestsResponse,
+          ordersResponse,
+        ] = await Promise.all([
           getMyLots({
             status: "listed",
             page: 1,
@@ -342,6 +359,10 @@ export default function DashboardPage({ user }) {
           }),
           getSellerPurchaseRequests({
             status: "pending",
+            page: 1,
+            limit: 100,
+          }),
+          getSellerOrders({
             page: 1,
             limit: 100,
           }),
@@ -358,13 +379,21 @@ export default function DashboardPage({ user }) {
             ? requestsResponse.requests
             : []
         );
+
+        setSellerOrders(
+          Array.isArray(ordersResponse?.orders)
+            ? ordersResponse.orders
+            : []
+        );
       } catch (error) {
         console.error("Dashboard data fetch error:", error);
 
         setActiveLots([]);
         setSellerRequests([]);
+        setSellerOrders([]);
       } finally {
         setIsLoadingLots(false);
+        setIsLoadingOrders(false);
       }
     };
 
@@ -376,7 +405,9 @@ export default function DashboardPage({ user }) {
     } else {
       setActiveLots([]);
       setSellerRequests([]);
+      setSellerOrders([]);
       setIsLoadingLots(false);
+      setIsLoadingOrders(false);
     }
   }, [currentUser?.role]);
 
@@ -523,6 +554,7 @@ export default function DashboardPage({ user }) {
   ];
 
   const bestMandiPrice = getBestMandiPrice();
+  const pendingPaymentAmount = getPendingPaymentAmount();
 
   return (
     <div className="w-full">
@@ -676,7 +708,13 @@ export default function DashboardPage({ user }) {
           <StatCard
             image="/images/stats/pending-payment.jpg"
             label={d.paymentsPending}
-            value="—"
+            value={
+              isLoadingOrders
+                ? "—"
+                : pendingPaymentAmount > 0
+                  ? formatCurrency(pendingPaymentAmount)
+                  : "₹0"
+            }
             color="yellow"
           />
 

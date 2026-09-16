@@ -70,3 +70,20 @@ export const cancelDemand = async (demandId) => {
     }
   );
 };
+
+export const getMarketDemands = async ({
+  status = "active",
+  page = 1,
+  limit = 20,
+} = {}) => {
+  const queryString = buildQueryString({
+    status,
+    page,
+    limit,
+  });
+
+  return apiRequest(`/demands/market${queryString}`, {
+    method: "GET",
+    auth: true,
+  });
+};
