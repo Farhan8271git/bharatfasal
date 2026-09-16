@@ -110,10 +110,10 @@ export default function LoginPage({ onLogin }) {
         state: backendUser.state || "",
       };
 
-      localStorage.setItem("bf_auth_token", response.token);
-      localStorage.setItem("bf_logged_in", "true");
-      localStorage.setItem("bf_user_role", user.role);
-      localStorage.setItem(
+      sessionStorage.setItem("bf_auth_token", response.token);
+      sessionStorage.setItem("bf_logged_in", "true");
+      sessionStorage.setItem("bf_user_role", user.role);
+      sessionStorage.setItem(
         "bf_registered_user",
         JSON.stringify(user)
       );
@@ -277,8 +277,8 @@ export default function LoginPage({ onLogin }) {
                   type="button"
                   onClick={() => handleUserTypeChange(role.id)}
                   className={`min-h-[88px] rounded-xl border-2 flex flex-col items-center justify-center transition-all ${active
-                      ? 'border-primary-600 bg-primary-50 text-primary-700 shadow-md'
-                      : 'border-gray-200 bg-white/70 text-gray-600 hover:border-primary-300 hover:bg-primary-50/50'
+                    ? 'border-primary-600 bg-primary-50 text-primary-700 shadow-md'
+                    : 'border-gray-200 bg-white/70 text-gray-600 hover:border-primary-300 hover:bg-primary-50/50'
                     }`}
                 >
                   <Icon

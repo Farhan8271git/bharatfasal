@@ -19,10 +19,16 @@ import {
   ShieldCheck,
   ChevronRight,
   FileText,
+  UserRound,
+  IndianRupee,
 } from "lucide-react";
 
 import { formatCurrency } from "../utils/formatters";
 import { getMyLots } from "../api/lots.api";
+import {
+  getSellerPurchaseRequests,
+  respondToPurchaseRequest,
+} from "../api/purchaseRequests.api";
 
 const availableLots = [
   {
@@ -166,6 +172,45 @@ const getStatusConfig = (status) => {
   }
 };
 
+const getRequestStatusConfig = (status) => {
+  switch (status) {
+    case "pending":
+      return {
+        label: "Pending",
+        className: "bg-amber-50 text-amber-700 border-amber-100",
+        icon: Clock3,
+      };
+
+    case "accepted":
+      return {
+        label: "Accepted",
+        className: "bg-green-50 text-green-700 border-green-100",
+        icon: CheckCircle2,
+      };
+
+    case "rejected":
+      return {
+        label: "Rejected",
+        className: "bg-red-50 text-red-700 border-red-100",
+        icon: XCircle,
+      };
+
+    case "cancelled":
+      return {
+        label: "Cancelled",
+        className: "bg-gray-50 text-gray-700 border-gray-100",
+        icon: XCircle,
+      };
+
+    default:
+      return {
+        label: status || "Unknown",
+        className: "bg-gray-50 text-gray-700 border-gray-100",
+        icon: FileText,
+      };
+  }
+};
+
 const formatDate = (date) => {
   if (!date) {
     return "—";
@@ -184,6 +229,16 @@ const formatDate = (date) => {
   });
 };
 
+const formatRequestAmount = (amount) => {
+  const value = Number(amount);
+
+  if (!Number.isFinite(value)) {
+    return "—";
+  }
+
+  return formatCurrency(value);
+};
+
 export default function MyLotsPage({ user }) {
   const { t } = useTranslation();
   const navigate = useNavigate();
@@ -195,6 +250,12 @@ export default function MyLotsPage({ user }) {
   const [sellerLots, setSellerLots] = useState([]);
   const [sellerLoading, setSellerLoading] = useState(false);
   const [sellerError, setSellerError] = useState("");
+
+  const [sellerRequests, setSellerRequests] = useState([]);
+  const [requestLoading, setRequestLoading] = useState(false);
+  const [requestError, setRequestError] = useState("");
+  const [requestActionId, setRequestActionId] = useState("");
+  const [requestActionError, setRequestActionError] = useState("");
 
   const [buyerSearch, setBuyerSearch] = useState("");
   const [buyerGrade, setBuyerGrade] = useState("all");
@@ -239,6 +300,54 @@ export default function MyLotsPage({ user }) {
     };
 
     loadSellerLots();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [isBuyer]);
+
+  useEffect(() => {
+    if (isBuyer) {
+      return;
+    }
+
+    let isMounted = true;
+
+    const loadSellerRequests = async () => {
+      setRequestLoading(true);
+      setRequestError("");
+
+      try {
+        const response = await getSellerPurchaseRequests({
+          page: 1,
+          limit: 100,
+        });
+
+        if (!response?.success) {
+          throw new Error(
+            response?.message ||
+              "Unable to load purchase requests."
+          );
+        }
+
+        if (isMounted) {
+          setSellerRequests(response.requests || []);
+        }
+      } catch (error) {
+        if (isMounted) {
+          setRequestError(
+            error?.message ||
+              "Unable to load purchase requests."
+          );
+        }
+      } finally {
+        if (isMounted) {
+          setRequestLoading(false);
+        }
+      }
+    };
+
+    loadSellerRequests();
 
     return () => {
       isMounted = false;
@@ -300,8 +409,82 @@ export default function MyLotsPage({ user }) {
     });
   }, [buyerSearch, buyerGrade, t]);
 
+  const pendingRequests = useMemo(() => {
+    return sellerRequests.filter(
+      (request) => request.status === "pending"
+    );
+  }, [sellerRequests]);
+
   const handleViewLot = (lotId) => {
     navigate(`/lots/${lotId}`);
+  };
+
+  const handlePurchaseRequestResponse = async (
+    requestId,
+    action
+  ) => {
+    if (!requestId || !["accept", "reject"].includes(action)) {
+      return;
+    }
+
+    setRequestActionId(requestId);
+    setRequestActionError("");
+
+    try {
+      const response = await respondToPurchaseRequest(
+        requestId,
+        {
+          action,
+        }
+      );
+
+      if (!response?.success) {
+        throw new Error(
+          response?.message ||
+            "Unable to update purchase request."
+        );
+      }
+
+      const updatedRequest = response.request;
+
+      setSellerRequests((currentRequests) =>
+        currentRequests.map((request) =>
+          String(request._id) === String(requestId)
+            ? updatedRequest || {
+                ...request,
+                status:
+                  action === "accept"
+                    ? "accepted"
+                    : "rejected",
+              }
+            : request
+        )
+      );
+
+      if (action === "accept" && updatedRequest?.lotId) {
+        const updatedLotId =
+          updatedRequest.lotId?._id ||
+          updatedRequest.lotId;
+
+        setSellerLots((currentLots) =>
+          currentLots.map((lot) =>
+            String(lot._id) === String(updatedLotId)
+              ? {
+                  ...lot,
+                  status: "reserved",
+                }
+              : lot
+          )
+        );
+      }
+    } catch (error) {
+      setRequestActionError(
+        error?.message ||
+          "Unable to update purchase request."
+      );
+    } finally {
+      setRequestActionId("");
+    }
   };
 
   if (isBuyer) {
@@ -415,7 +598,10 @@ export default function MyLotsPage({ user }) {
                         <div>
                           <div className="flex flex-wrap items-center gap-2">
                             <h3 className="text-lg font-bold text-gray-900">
-                              {getCropName(lot.commodityId, t)}
+                              {getCropName(
+                                lot.commodityId,
+                                t
+                              )}
                             </h3>
 
                             {lot.verified && (
@@ -616,6 +802,345 @@ export default function MyLotsPage({ user }) {
         </div>
       </section>
 
+      <section className="bg-white border border-gray-200 rounded-xl p-5">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
+          <div>
+            <div className="flex items-center gap-2">
+              <ShoppingCart
+                size={19}
+                className="text-green-600"
+              />
+
+              <h2 className="text-lg font-bold text-gray-900">
+                Purchase Requests
+              </h2>
+
+              {pendingRequests.length > 0 && (
+                <span className="inline-flex items-center justify-center min-w-6 h-6 px-2 rounded-full bg-amber-100 text-amber-700 text-xs font-bold">
+                  {pendingRequests.length}
+                </span>
+              )}
+            </div>
+
+            <p className="text-sm text-gray-500 mt-1">
+              Review buyer requests for your marketplace lots.
+            </p>
+          </div>
+
+          <span className="text-xs text-gray-400">
+            {sellerRequests.length} requests
+          </span>
+        </div>
+
+        {requestActionError && (
+          <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3">
+            <div className="flex items-start gap-2">
+              <XCircle
+                size={17}
+                className="text-red-600 mt-0.5 shrink-0"
+              />
+
+              <p className="text-sm text-red-700">
+                {requestActionError}
+              </p>
+            </div>
+          </div>
+        )}
+
+        {requestLoading ? (
+          <div className="rounded-lg border border-gray-200 bg-gray-50 p-10 text-center">
+            <ShoppingCart
+              size={30}
+              className="mx-auto text-gray-300"
+            />
+
+            <p className="mt-3 text-sm font-semibold text-gray-700">
+              Loading purchase requests...
+            </p>
+
+            <p className="mt-1 text-xs text-gray-500">
+              Fetching the latest buyer requests.
+            </p>
+          </div>
+        ) : requestError ? (
+          <div className="rounded-lg border border-red-200 bg-red-50 p-8 text-center">
+            <XCircle
+              size={30}
+              className="mx-auto text-red-400"
+            />
+
+            <p className="mt-3 text-sm font-semibold text-red-700">
+              Unable to load purchase requests
+            </p>
+
+            <p className="mt-1 text-xs text-gray-500">
+              {requestError}
+            </p>
+          </div>
+        ) : sellerRequests.length > 0 ? (
+          <div className="space-y-3">
+            {sellerRequests.map((request) => {
+              const requestStatus = getRequestStatusConfig(
+                request.status
+              );
+
+              const RequestStatusIcon =
+                requestStatus.icon;
+
+              const lot = request.lotId;
+              const buyer = request.buyerId;
+
+              const requestLotId =
+                lot?._id || request.lotId;
+
+              const isActionLoading =
+                requestActionId === request._id;
+
+              return (
+                <article
+                  key={request._id}
+                  className="rounded-xl border border-gray-200 overflow-hidden"
+                >
+                  <div className="p-4 sm:p-5">
+                    <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4">
+                      <div className="flex items-start gap-3">
+                        <div className="w-10 h-10 rounded-lg bg-green-50 flex items-center justify-center shrink-0">
+                          <UserRound
+                            size={18}
+                            className="text-green-600"
+                          />
+                        </div>
+
+                        <div>
+                          <div className="flex flex-wrap items-center gap-2">
+                            <h3 className="text-base font-bold text-gray-900">
+                              {buyer?.name ||
+                                buyer?.organizationName ||
+                                "Buyer"}
+                            </h3>
+
+                            <span
+                              className={`
+                                inline-flex items-center gap-1 px-2 py-1
+                                rounded-full border text-[11px] font-semibold
+                                ${requestStatus.className}
+                              `}
+                            >
+                              <RequestStatusIcon
+                                size={11}
+                              />
+                              {requestStatus.label}
+                            </span>
+                          </div>
+
+                          <p className="text-xs text-gray-400 mt-1">
+                            Request ID: {request._id}
+                          </p>
+
+                          {buyer?.organizationName && (
+                            <p className="text-xs text-gray-500 mt-1">
+                              {buyer.organizationName}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="text-left lg:text-right">
+                        <p className="text-lg font-bold text-gray-900">
+                          {formatRequestAmount(
+                            request.totalAmount
+                          )}
+                        </p>
+
+                        <p className="text-xs text-gray-500">
+                          Total request value
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 mt-4">
+                      <div className="rounded-lg border border-gray-200 bg-gray-50 p-3">
+                        <p className="text-xs text-gray-400">
+                          Lot
+                        </p>
+
+                        <p className="text-sm font-semibold text-gray-900 mt-1">
+                          {getCropName(
+                            lot?.commodity,
+                            t
+                          )}
+                        </p>
+
+                        <p className="text-xs text-gray-500 mt-0.5">
+                          {requestLotId
+                            ? `Lot ID: ${requestLotId}`
+                            : "Lot information unavailable"}
+                        </p>
+                      </div>
+
+                      <div className="rounded-lg border border-gray-200 bg-gray-50 p-3">
+                        <p className="text-xs text-gray-400">
+                          Requested Quantity
+                        </p>
+
+                        <p className="text-sm font-semibold text-gray-900 mt-1">
+                          {request.quantity}{" "}
+                          {request.unit === "quintal"
+                            ? "Quintals"
+                            : request.unit || ""}
+                        </p>
+                      </div>
+
+                      <div className="rounded-lg border border-gray-200 bg-gray-50 p-3">
+                        <div className="flex items-center gap-1.5">
+                          <IndianRupee
+                            size={14}
+                            className="text-gray-400"
+                          />
+
+                          <p className="text-xs text-gray-400">
+                            Offered Price
+                          </p>
+                        </div>
+
+                        <p className="text-sm font-semibold text-gray-900 mt-1">
+                          {formatRequestAmount(
+                            request.offeredPrice
+                          )}{" "}
+                          / quintal
+                        </p>
+                      </div>
+
+                      <div className="rounded-lg border border-gray-200 bg-gray-50 p-3">
+                        <div className="flex items-center gap-1.5">
+                          <CalendarDays
+                            size={14}
+                            className="text-gray-400"
+                          />
+
+                          <p className="text-xs text-gray-400">
+                            Requested On
+                          </p>
+                        </div>
+
+                        <p className="text-sm font-semibold text-gray-900 mt-1">
+                          {formatDate(request.createdAt)}
+                        </p>
+                      </div>
+                    </div>
+
+                    {lot?.pickupLocation && (
+                      <div className="flex items-start gap-2 mt-4 text-sm text-gray-600">
+                        <MapPin
+                          size={15}
+                          className="text-gray-400 mt-0.5 shrink-0"
+                        />
+
+                        <span>
+                          Pickup:{" "}
+                          <span className="font-semibold text-gray-800">
+                            {lot.pickupLocation}
+                          </span>
+                        </span>
+                      </div>
+                    )}
+
+                    {buyer?.mobile && (
+                      <div className="mt-2 text-xs text-gray-500">
+                        Buyer contact: {buyer.mobile}
+                      </div>
+                    )}
+
+                    {request.buyerNote && (
+                      <div className="mt-4 rounded-lg border border-gray-200 bg-white p-3">
+                        <p className="text-xs font-semibold text-gray-500">
+                          Buyer Note
+                        </p>
+
+                        <p className="text-sm text-gray-700 mt-1">
+                          {request.buyerNote}
+                        </p>
+                      </div>
+                    )}
+
+                    {request.sellerNote && (
+                      <div className="mt-3 rounded-lg border border-gray-200 bg-white p-3">
+                        <p className="text-xs font-semibold text-gray-500">
+                          Seller Note
+                        </p>
+
+                        <p className="text-sm text-gray-700 mt-1">
+                          {request.sellerNote}
+                        </p>
+                      </div>
+                    )}
+                  </div>
+
+                  {request.status === "pending" && (
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 px-4 sm:px-5 py-3 border-t border-gray-100 bg-gray-50">
+                      <p className="text-xs text-gray-500">
+                        Review this request before accepting or rejecting it.
+                      </p>
+
+                      <div className="flex flex-wrap gap-2">
+                        <button
+                          type="button"
+                          disabled={isActionLoading}
+                          onClick={() =>
+                            handlePurchaseRequestResponse(
+                              request._id,
+                              "reject"
+                            )
+                          }
+                          className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-red-200 bg-white px-4 py-2 text-xs font-semibold text-red-600 hover:bg-red-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          <XCircle size={14} />
+                          {isActionLoading
+                            ? "Processing..."
+                            : "Reject"}
+                        </button>
+
+                        <button
+                          type="button"
+                          disabled={isActionLoading}
+                          onClick={() =>
+                            handlePurchaseRequestResponse(
+                              request._id,
+                              "accept"
+                            )
+                          }
+                          className="inline-flex items-center justify-center gap-1.5 rounded-lg bg-green-600 px-4 py-2 text-xs font-semibold text-white hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          <CheckCircle2 size={14} />
+                          {isActionLoading
+                            ? "Processing..."
+                            : "Accept Request"}
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </article>
+              );
+            })}
+          </div>
+        ) : (
+          <div className="rounded-lg border border-gray-200 bg-gray-50 p-10 text-center">
+            <ShoppingCart
+              size={30}
+              className="mx-auto text-gray-300"
+            />
+
+            <p className="mt-3 text-sm font-semibold text-gray-700">
+              No purchase requests yet
+            </p>
+
+            <p className="mt-1 text-xs text-gray-500">
+              Buyer requests for your listed lots will appear here.
+            </p>
+          </div>
+        )}
+      </section>
+
       <section className="space-y-3">
         <div className="relative">
           <Search
@@ -723,7 +1248,10 @@ export default function MyLotsPage({ user }) {
                       <div>
                         <div className="flex flex-wrap items-center gap-2">
                           <h2 className="text-lg font-bold text-gray-900">
-                            {getCropName(lot.commodity, t)}
+                            {getCropName(
+                              lot.commodity,
+                              t
+                            )}
                           </h2>
 
                           <span
@@ -739,7 +1267,8 @@ export default function MyLotsPage({ user }) {
                         </div>
 
                         <p className="text-xs text-gray-400 mt-1">
-                          {lot._id} · Created {formatDate(lot.createdAt)}
+                          {lot._id} · Created{" "}
+                          {formatDate(lot.createdAt)}
                         </p>
 
                         <div className="flex flex-wrap gap-x-5 gap-y-2 mt-3 text-sm text-gray-600">
@@ -771,7 +1300,9 @@ export default function MyLotsPage({ user }) {
 
                     <div className="text-left lg:text-right">
                       <p className="text-xl font-bold text-gray-900">
-                        {formatCurrency(lot.expectedPrice)}
+                        {formatCurrency(
+                          lot.expectedPrice
+                        )}
                       </p>
 
                       <p className="text-xs text-gray-500">
@@ -811,7 +1342,9 @@ export default function MyLotsPage({ user }) {
                       </div>
 
                       <p className="text-sm font-semibold text-gray-900 mt-1">
-                        {formatDate(lot.availableDate)}
+                        {formatDate(
+                          lot.availableDate
+                        )}
                       </p>
                     </div>
 
@@ -830,7 +1363,8 @@ export default function MyLotsPage({ user }) {
                       <p className="text-sm font-semibold text-gray-900 mt-1">
                         {lot.transportation === "buyer"
                           ? "Buyer will arrange"
-                          : lot.transportation === "seller"
+                          : lot.transportation ===
+                              "seller"
                             ? "Seller will arrange"
                             : "Platform will arrange"}
                       </p>
@@ -883,7 +1417,9 @@ export default function MyLotsPage({ user }) {
                 <div className="flex flex-wrap justify-end gap-2 px-5 py-3 border-t border-gray-100 bg-gray-50">
                   <button
                     type="button"
-                    onClick={() => handleViewLot(lot._id)}
+                    onClick={() =>
+                      handleViewLot(lot._id)
+                    }
                     className="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-4 py-2 text-xs font-semibold text-gray-700 hover:bg-gray-50"
                   >
                     <Eye size={14} />

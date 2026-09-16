@@ -5,11 +5,12 @@ import {
   getBuyerPurchaseRequestsController,
   getSellerPurchaseRequestsController,
   getPurchaseRequestByIdController,
+  respondToPurchaseRequestController,
 } from "../controllers/purchaseRequest.controller.js";
 
 import {
-  protect,
   authorize,
+  protect,
 } from "../middleware/auth.middleware.js";
 
 const router = express.Router();
@@ -32,6 +33,12 @@ router.get(
   "/seller",
   authorize("farmer", "fpo"),
   getSellerPurchaseRequestsController
+);
+
+router.patch(
+  "/:id/respond",
+  authorize("farmer", "fpo"),
+  respondToPurchaseRequestController
 );
 
 router.get(

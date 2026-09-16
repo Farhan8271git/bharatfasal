@@ -10,9 +10,13 @@ import authRoutes from "./routes/auth.routes.js";
 import verificationRoutes from "./routes/verifications.routes.js";
 import lotRoutes from "./routes/lot.routes.js";
 import purchaseRequestRoutes from "./routes/purchaseRequest.routes.js";
+import orderRoutes from "./routes/order.routes.js";
+import demandRoutes from "./routes/demand.routes.js";
+
 import connectDB from "./config/db.js";
 
 const app = express();
+
 app.use((req, res, next) => {
   const startTime = Date.now();
 
@@ -32,20 +36,17 @@ const PORT = process.env.PORT || 5000;
 // MIDDLEWARE
 
 app.use(cors());
-
 app.use(express.json());
 
 // ROUTES
 
 app.use("/api/auth", authRoutes);
-
 app.use("/api/mandi-prices", mandiRoutes);
-
 app.use("/api/verifications", verificationRoutes);
-
 app.use("/api/lots", lotRoutes);
-
-app.use( "/api/purchase-requests", purchaseRequestRoutes);
+app.use("/api/purchase-requests", purchaseRequestRoutes);
+app.use("/api/orders", orderRoutes);
+app.use("/api/demands", demandRoutes);
 
 app.use((err, req, res, next) => {
   console.error("Global error:", err);
@@ -101,8 +102,6 @@ app.get("/api/crop-image", async (req, res) => {
   try {
     const crop = String(req.query.crop || "").trim();
 
-    // validate crop name
-
     if (!crop) {
       return res.status(400).json({
         success: false,
@@ -112,8 +111,6 @@ app.get("/api/crop-image", async (req, res) => {
 
     const cacheKey = cleanCropName(crop);
 
-    // RETURN CACHED IMAGE
-
     if (cropImageCache.has(cacheKey)) {
       return res.json({
         success: true,
@@ -122,8 +119,6 @@ app.get("/api/crop-image", async (req, res) => {
         source: "cache",
       });
     }
-
-    // CHECK LOCAL IMAGE FIRST
 
     const localImage = getLocalCropImage(crop);
 
@@ -138,24 +133,22 @@ app.get("/api/crop-image", async (req, res) => {
       });
     }
 
-    // WIKIMEDIA COMMONS FALLBACK
-
     const searchQuery = encodeURIComponent(
       `${crop} crop agriculture`
     );
 
     const wikiUrl =
       "https://commons.wikimedia.org/w/api.php" +
-      `?action=query` +
-      `&generator=search` +
+      "?action=query" +
+      "&generator=search" +
       `&gsrsearch=${searchQuery}` +
-      `&gsrnamespace=6` +
-      `&gsrlimit=5` +
-      `&prop=imageinfo` +
-      `&iiprop=url` +
-      `&iiurlwidth=600` +
-      `&format=json` +
-      `&origin=*`;
+      "&gsrnamespace=6" +
+      "&gsrlimit=5" +
+      "&prop=imageinfo" +
+      "&iiprop=url" +
+      "&iiurlwidth=600" +
+      "&format=json" +
+      "&origin=*";
 
     const response = await fetch(wikiUrl);
 
@@ -188,8 +181,6 @@ app.get("/api/crop-image", async (req, res) => {
       }
     }
 
-    // DEFAULT FALLBACK
-
     const fallback = "/images/crops/default.jpg";
 
     cropImageCache.set(cacheKey, fallback);
@@ -201,7 +192,7 @@ app.get("/api/crop-image", async (req, res) => {
       source: "fallback",
     });
   } catch (error) {
-    console.error("❌ Crop image error:", error);
+    console.error("Crop image error:", error);
 
     return res.json({
       success: true,
@@ -231,9 +222,10 @@ const startServer = async () => {
     );
 
     console.log(
-      `🔐 DATA_GOV_API_KEY: ${process.env.DATA_GOV_API_KEY
-        ? "loaded"
-        : "missing"
+      `🔐 DATA_GOV_API_KEY: ${
+        process.env.DATA_GOV_API_KEY
+          ? "loaded"
+          : "missing"
       }`
     );
   });

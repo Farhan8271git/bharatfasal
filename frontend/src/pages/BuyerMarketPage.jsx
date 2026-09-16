@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 
@@ -14,7 +14,6 @@ import {
   Truck,
   CheckCircle2,
   Building2,
-  UserRound,
   Send,
   Eye,
   ShoppingCart,
@@ -25,6 +24,12 @@ import SearchBar from "../components/SearchBar";
 import BuyerCard from "../components/BuyerCard";
 
 import { buyers, demandBoard } from "../data/mockBuyers";
+
+import {
+  createDemand,
+  getMyDemands,
+} from "../api/demands.api";
+
 import { commodities } from "../data/mockCommodities";
 
 import {
@@ -107,7 +112,7 @@ const getCommodityName = (crop, t) => {
       return translated;
     }
   } catch {
-    // fallback below
+    // Fallback below.
   }
 
   return String(crop)
@@ -196,11 +201,72 @@ export default function BuyerMarketPage({ user }) {
   const [submitted, setSubmitted] = useState(false);
 
   // =====================================================
+  // DEMAND STATE
+  // =====================================================
+
+  const [myDemands, setMyDemands] = useState([]);
+  const [demandLoading, setDemandLoading] = useState(false);
+  const [demandError, setDemandError] = useState("");
+
+  // =====================================================
   // BUYER LOT FILTERS
   // =====================================================
 
   const [lotSearch, setLotSearch] = useState("");
   const [lotGrade, setLotGrade] = useState("all");
+
+  // =====================================================
+  // LOAD BUYER DEMANDS
+  // =====================================================
+
+  useEffect(() => {
+    if (!isBuyer) {
+      return;
+    }
+
+    let cancelled = false;
+
+    const fetchDemands = async () => {
+      setDemandLoading(true);
+      setDemandError("");
+
+      try {
+        const response = await getMyDemands({
+          status: "active",
+          page: 1,
+          limit: 20,
+        });
+
+        if (cancelled) {
+          return;
+        }
+
+        setMyDemands(
+          Array.isArray(response?.demands)
+            ? response.demands
+            : []
+        );
+      } catch (error) {
+        if (cancelled) {
+          return;
+        }
+
+        setDemandError(
+          error?.message || "Unable to load your demands."
+        );
+      } finally {
+        if (!cancelled) {
+          setDemandLoading(false);
+        }
+      }
+    };
+
+    fetchDemands();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isBuyer]);
 
   // =====================================================
   // TAB CHANGE
@@ -285,7 +351,7 @@ export default function BuyerMarketPage({ user }) {
   // FORM SUBMIT
   // =====================================================
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
 
     if (
@@ -300,17 +366,41 @@ export default function BuyerMarketPage({ user }) {
       return;
     }
 
-    setSubmitted(true);
+    setDemandLoading(true);
+    setDemandError("");
 
-    console.log("New Buyer Demand:", {
-      ...formData,
-      buyerId: user?.id,
-      buyerName:
-        user?.companyName ||
-        user?.businessName ||
-        user?.name ||
-        "Buyer",
-    });
+    try {
+      const response = await createDemand({
+        commodity: formData.crop,
+        quantity: Number(formData.quantity),
+        grade: formData.grade,
+        estimatedPrice: Number(formData.estimatedPrice),
+        deliveryLocation: formData.deliveryLocation,
+        deadline: formData.deadline,
+        transportation: formData.transportation,
+      });
+
+      const createdDemand = response?.demand;
+
+      if (!createdDemand) {
+        throw new Error(
+          "Demand was created but no demand data was returned."
+        );
+      }
+
+      setMyDemands((previousDemands) => [
+        createdDemand,
+        ...previousDemands,
+      ]);
+
+      setSubmitted(true);
+    } catch (error) {
+      setDemandError(
+        error?.message || "Unable to create buyer demand."
+      );
+    } finally {
+      setDemandLoading(false);
+    }
   };
 
   // =====================================================
@@ -319,6 +409,7 @@ export default function BuyerMarketPage({ user }) {
 
   const resetForm = () => {
     setSubmitted(false);
+    setDemandError("");
 
     setFormData({
       crop: "",
@@ -402,10 +493,9 @@ export default function BuyerMarketPage({ user }) {
                 rounded-lg px-3 py-2.5
                 text-sm font-semibold
                 transition-colors
-                ${
-                  tab === "buyers"
-                    ? "bg-green-600 text-white"
-                    : "text-gray-600 hover:bg-gray-50"
+                ${tab === "buyers"
+                  ? "bg-green-600 text-white"
+                  : "text-gray-600 hover:bg-gray-50"
                 }
               `}
             >
@@ -421,10 +511,9 @@ export default function BuyerMarketPage({ user }) {
                 rounded-lg px-3 py-2.5
                 text-sm font-semibold
                 transition-colors
-                ${
-                  tab === "demand"
-                    ? "bg-green-600 text-white"
-                    : "text-gray-600 hover:bg-gray-50"
+                ${tab === "demand"
+                  ? "bg-green-600 text-white"
+                  : "text-gray-600 hover:bg-gray-50"
                 }
               `}
             >
@@ -480,10 +569,9 @@ export default function BuyerMarketPage({ user }) {
                       text-sm font-semibold
                       whitespace-nowrap
                       transition-colors
-                      ${
-                        typeFilter === type.id
-                          ? "bg-green-600 text-white"
-                          : "bg-white text-gray-600 border border-gray-200 hover:border-green-300"
+                      ${typeFilter === type.id
+                        ? "bg-green-600 text-white"
+                        : "bg-white text-gray-600 border border-gray-200 hover:border-green-300"
                       }
                     `}
                   >
@@ -582,10 +670,9 @@ export default function BuyerMarketPage({ user }) {
                         border
                         rounded-xl
                         p-5
-                        ${
-                          demand.status === "urgent"
-                            ? "border-red-200 bg-red-50/30"
-                            : "border-gray-200"
+                        ${demand.status === "urgent"
+                          ? "border-red-200 bg-red-50/30"
+                          : "border-gray-200"
                         }
                       `}
                     >
@@ -623,8 +710,8 @@ export default function BuyerMarketPage({ user }) {
                                     font-semibold
                                     capitalize
                                     ${getStatusColor(
-                                      demand.status
-                                    )}
+                                    demand.status
+                                  )}
                                   `}
                                 >
                                   {demand.status}
@@ -819,10 +906,9 @@ export default function BuyerMarketPage({ user }) {
                 rounded-lg px-3 py-2.5
                 text-sm font-semibold
                 transition-colors
-                ${
-                  tab === "lots"
-                    ? "bg-green-600 text-white"
-                    : "text-gray-600 hover:bg-gray-50"
+                ${tab === "lots"
+                  ? "bg-green-600 text-white"
+                  : "text-gray-600 hover:bg-gray-50"
                 }
               `}
             >
@@ -839,10 +925,9 @@ export default function BuyerMarketPage({ user }) {
                 rounded-lg px-3 py-2.5
                 text-sm font-semibold
                 transition-colors
-                ${
-                  tab === "demands"
-                    ? "bg-green-600 text-white"
-                    : "text-gray-600 hover:bg-gray-50"
+                ${tab === "demands"
+                  ? "bg-green-600 text-white"
+                  : "text-gray-600 hover:bg-gray-50"
                 }
               `}
             >
@@ -859,10 +944,9 @@ export default function BuyerMarketPage({ user }) {
                 rounded-lg px-3 py-2.5
                 text-sm font-semibold
                 transition-colors
-                ${
-                  tab === "post"
-                    ? "bg-green-600 text-white"
-                    : "text-gray-600 hover:bg-gray-50"
+                ${tab === "post"
+                  ? "bg-green-600 text-white"
+                  : "text-gray-600 hover:bg-gray-50"
                 }
               `}
             >
@@ -917,10 +1001,9 @@ export default function BuyerMarketPage({ user }) {
                       text-sm font-semibold
                       whitespace-nowrap
                       transition-colors
-                      ${
-                        lotGrade === grade.id
-                          ? "bg-green-600 text-white"
-                          : "bg-white text-gray-600 border border-gray-200 hover:border-green-300"
+                      ${lotGrade === grade.id
+                        ? "bg-green-600 text-white"
+                        : "bg-white text-gray-600 border border-gray-200 hover:border-green-300"
                       }
                     `}
                   >
@@ -1219,104 +1302,231 @@ export default function BuyerMarketPage({ user }) {
               </div>
 
 
-              {submitted ? (
+              {demandLoading ? (
 
-                <div className="bg-white border border-gray-200 rounded-xl p-8">
+                <div className="bg-white border border-gray-200 rounded-xl p-10 text-center">
 
-                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                  <Clock3
+                    size={30}
+                    className="mx-auto text-gray-300 animate-pulse"
+                  />
 
-                    <div className="flex items-start gap-3">
+                  <p className="mt-3 text-sm font-semibold text-gray-700">
+                    Loading your demands...
+                  </p>
 
-                      <div className="w-10 h-10 rounded-lg bg-green-50 flex items-center justify-center shrink-0">
+                  <p className="text-xs text-gray-500 mt-1">
+                    Fetching your active procurement requirements.
+                  </p>
 
-                        <CheckCircle2
-                          size={20}
-                          className="text-green-600"
-                        />
+                </div>
 
-                      </div>
+              ) : demandError ? (
 
-                      <div>
+                <div className="bg-white border border-red-200 rounded-xl p-8 text-center">
 
-                        <h3 className="font-bold text-gray-900">
-                          {getCommodityName(
-                            formData.crop,
-                            t
-                          )} Procurement
-                        </h3>
+                  <ClipboardList
+                    size={30}
+                    className="mx-auto text-red-300"
+                  />
 
-                        <p className="text-sm text-gray-500 mt-1">
-                          {formData.quantity} Quintals ·{" "}
-                          {formData.grade}
-                        </p>
+                  <p className="mt-3 text-sm font-semibold text-red-700">
+                    Unable to load your demands
+                  </p>
 
-                      </div>
+                  <p className="text-xs text-red-500 mt-1">
+                    {demandError}
+                  </p>
 
-                    </div>
+                </div>
 
+              ) : myDemands.length > 0 ? (
 
-                    <span className="inline-flex items-center gap-1.5 rounded-full bg-green-50 px-3 py-1.5 text-xs font-semibold text-green-700">
-                      <Clock3 size={13} />
-                      Matching Active
-                    </span>
+                <div className="space-y-3">
 
-                  </div>
+                  {myDemands.map((demand) => (
 
-
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-5 pt-5 border-t border-gray-100">
-
-                    <div>
-
-                      <p className="text-xs text-gray-400">
-                        Expected Price
-                      </p>
-
-                      <p className="mt-1 text-sm font-semibold">
-                        ₹{formData.estimatedPrice} / quintal
-                      </p>
-
-                    </div>
-
-                    <div>
-
-                      <p className="text-xs text-gray-400">
-                        Delivery Location
-                      </p>
-
-                      <p className="mt-1 text-sm font-semibold">
-                        {formData.deliveryLocation}
-                      </p>
-
-                    </div>
-
-                    <div>
-
-                      <p className="text-xs text-gray-400">
-                        Required By
-                      </p>
-
-                      <p className="mt-1 text-sm font-semibold">
-                        {formatDate(formData.deadline)}
-                      </p>
-
-                    </div>
-
-                  </div>
-
-
-                  <div className="flex justify-end mt-5">
-
-                    <button
-                      type="button"
-                      onClick={() =>
-                        changeTab("post")
-                      }
-                      className="text-sm font-semibold text-green-700 hover:text-green-800"
+                    <div
+                      key={demand._id}
+                      className="bg-white border border-gray-200 rounded-xl p-5"
                     >
-                      Post another demand
-                    </button>
 
-                  </div>
+                      <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-5">
+
+                        <div className="min-w-0">
+
+                          <div className="flex items-start gap-3">
+
+                            <div className="w-10 h-10 rounded-lg bg-green-50 flex items-center justify-center shrink-0">
+
+                              <Package
+                                size={18}
+                                className="text-green-600"
+                              />
+
+                            </div>
+
+                            <div className="min-w-0">
+
+                              <div className="flex flex-wrap items-center gap-2">
+
+                                <h3 className="font-bold text-gray-900">
+                                  {getCommodityName(
+                                    demand.commodity,
+                                    t
+                                  )}
+                                </h3>
+
+                                <span
+                                  className={`
+                                    px-2 py-0.5
+                                    rounded-full
+                                    text-[11px]
+                                    font-semibold
+                                    capitalize
+                                    ${getStatusColor(
+                                      demand.status || "active"
+                                    )}
+                                  `}
+                                >
+                                  {demand.status || "active"}
+                                </span>
+
+                              </div>
+
+                              <p className="text-xs text-gray-400 mt-1">
+                                Posted{" "}
+                                {formatDate(
+                                  demand.createdAt
+                                )}
+                              </p>
+
+                            </div>
+
+                          </div>
+
+
+                          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mt-5">
+
+                            <div>
+
+                              <p className="text-xs text-gray-400">
+                                Required Quantity
+                              </p>
+
+                              <p className="mt-1 text-sm font-semibold text-gray-900">
+                                {demand.quantity}{" "}
+                                {demand.unit || "quintal"}
+                              </p>
+
+                            </div>
+
+
+                            <div>
+
+                              <p className="text-xs text-gray-400">
+                                Grade / Quality
+                              </p>
+
+                              <p className="mt-1 text-sm font-semibold text-gray-900">
+                                {demand.grade || "Any"}
+                              </p>
+
+                            </div>
+
+
+                            <div>
+
+                              <p className="text-xs text-gray-400">
+                                Estimated Price
+                              </p>
+
+                              <p className="mt-1 text-sm font-semibold text-gray-900">
+                                {demand.estimatedPrice != null
+                                  ? formatCurrency(
+                                      demand.estimatedPrice
+                                    )
+                                  : "Not specified"}
+                                {demand.estimatedPrice != null && (
+                                  <span className="text-xs font-normal text-gray-500">
+                                    {" "}
+                                    / quintal
+                                  </span>
+                                )}
+                              </p>
+
+                            </div>
+
+
+                            <div>
+
+                              <p className="text-xs text-gray-400">
+                                Delivery Location
+                              </p>
+
+                              <p className="mt-1 flex items-start gap-1 text-sm font-semibold text-gray-900">
+                                <MapPin
+                                  size={14}
+                                  className="mt-0.5 shrink-0 text-gray-400"
+                                />
+
+                                {demand.deliveryLocation ||
+                                  "Not specified"}
+                              </p>
+
+                            </div>
+
+
+                            <div>
+
+                              <p className="text-xs text-gray-400">
+                                Required By
+                              </p>
+
+                              <p className="mt-1 flex items-center gap-1 text-sm font-semibold text-gray-900">
+                                <CalendarDays
+                                  size={14}
+                                  className="text-gray-400"
+                                />
+
+                                {formatDate(
+                                  demand.deadline
+                                )}
+                              </p>
+
+                            </div>
+
+
+                            <div>
+
+                              <p className="text-xs text-gray-400">
+                                Transportation
+                              </p>
+
+                              <p className="mt-1 flex items-center gap-1 text-sm font-semibold text-gray-900">
+                                <Truck
+                                  size={14}
+                                  className="text-gray-400"
+                                />
+
+                                {demand.transportation === "buyer"
+                                  ? "Buyer will arrange"
+                                  : demand.transportation === "seller"
+                                    ? "Seller will arrange"
+                                    : demand.transportation || "Not specified"}
+                              </p>
+
+                            </div>
+
+                          </div>
+
+                        </div>
+
+                      </div>
+
+                    </div>
+
+                  ))}
 
                 </div>
 
@@ -1456,6 +1666,20 @@ export default function BuyerMarketPage({ user }) {
               onSubmit={handleSubmit}
               className="p-5 sm:p-7 space-y-7"
             >
+
+              {/* ERROR */}
+
+              {demandError && (
+
+                <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3">
+
+                  <p className="text-sm font-medium text-red-700">
+                    {demandError}
+                  </p>
+
+                </div>
+
+              )}
 
               {/* PRODUCE */}
 
@@ -1737,10 +1961,9 @@ export default function BuyerMarketPage({ user }) {
                       relative flex items-start gap-3
                       p-4 rounded-xl border cursor-pointer
                       transition-all
-                      ${
-                        formData.transportation === "buyer"
-                          ? "border-green-500 bg-green-50 ring-1 ring-green-500"
-                          : "border-gray-200 hover:border-gray-300"
+                      ${formData.transportation === "buyer"
+                        ? "border-green-500 bg-green-50 ring-1 ring-green-500"
+                        : "border-gray-200 hover:border-gray-300"
                       }
                     `}
                   >
@@ -1761,10 +1984,9 @@ export default function BuyerMarketPage({ user }) {
                         w-5 h-5 rounded-full border-2
                         flex items-center justify-center
                         shrink-0 mt-0.5
-                        ${
-                          formData.transportation === "buyer"
-                            ? "border-green-600"
-                            : "border-gray-300"
+                        ${formData.transportation === "buyer"
+                          ? "border-green-600"
+                          : "border-gray-300"
                         }
                       `}
                     >
@@ -1797,10 +2019,9 @@ export default function BuyerMarketPage({ user }) {
                       relative flex items-start gap-3
                       p-4 rounded-xl border cursor-pointer
                       transition-all
-                      ${
-                        formData.transportation === "seller"
-                          ? "border-green-500 bg-green-50 ring-1 ring-green-500"
-                          : "border-gray-200 hover:border-gray-300"
+                      ${formData.transportation === "seller"
+                        ? "border-green-500 bg-green-50 ring-1 ring-green-500"
+                        : "border-gray-200 hover:border-gray-300"
                       }
                     `}
                   >
@@ -1821,10 +2042,9 @@ export default function BuyerMarketPage({ user }) {
                         w-5 h-5 rounded-full border-2
                         flex items-center justify-center
                         shrink-0 mt-0.5
-                        ${
-                          formData.transportation === "seller"
-                            ? "border-green-600"
-                            : "border-gray-300"
+                        ${formData.transportation === "seller"
+                          ? "border-green-600"
+                          : "border-gray-300"
                         }
                       `}
                     >
@@ -1902,10 +2122,11 @@ export default function BuyerMarketPage({ user }) {
 
                 <button
                   type="submit"
-                  className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-lg bg-green-600 hover:bg-green-700 text-white text-sm font-semibold transition-colors"
+                  disabled={demandLoading}
+                  className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-lg bg-green-600 hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-60 text-white text-sm font-semibold transition-colors"
                 >
                   <Send size={16} />
-                  Post Demand
+                  {demandLoading ? "Posting..." : "Post Demand"}
                 </button>
 
               </div>

@@ -23,6 +23,18 @@ const lotSchema = new mongoose.Schema(
       min: 0.01,
     },
 
+    reservedQuantity: {
+      type: Number,
+      default: 0,
+      min: 0,
+      validate: {
+        validator(value) {
+          return value <= this.quantity
+        },
+        message: 'Reserved quantity cannot exceed total quantity.',
+      },
+    },
+
     unit: {
       type: String,
       enum: ['quintal'],

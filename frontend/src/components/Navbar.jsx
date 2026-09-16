@@ -300,7 +300,6 @@ export default function Navbar({ user, onLogout }) {
     // -------------------------------------------------------
     // BUYER
     // -------------------------------------------------------
-
     if (isBuyer) {
       return [
         {
@@ -312,11 +311,6 @@ export default function Navbar({ user, onLogout }) {
           label: navText.prices,
           path: "/prices",
           icon: BarChart3,
-        },
-        {
-          label: navText.buyers,
-          path: "/buyers",
-          icon: Handshake,
         },
         {
           label: navText.browseLots,
@@ -335,7 +329,6 @@ export default function Navbar({ user, onLogout }) {
         },
       ];
     }
-
     // -------------------------------------------------------
     // FPO
     // -------------------------------------------------------
@@ -522,10 +515,9 @@ export default function Navbar({ user, onLogout }) {
                       rounded-lg
                       text-sm font-medium
                       transition-colors
-                      ${
-                        active
-                          ? "bg-green-50 text-green-700"
-                          : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
+                      ${active
+                        ? "bg-green-50 text-green-700"
+                        : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
                       }
                     `}
                   >
@@ -572,9 +564,8 @@ export default function Navbar({ user, onLogout }) {
                   </span>
                   <ChevronDown
                     size={13}
-                    className={`text-gray-400 transition-transform ${
-                      languageOpen ? "rotate-180" : ""
-                    }`}
+                    className={`text-gray-400 transition-transform ${languageOpen ? "rotate-180" : ""
+                      }`}
                   />
                 </button>
 
@@ -612,11 +603,10 @@ export default function Navbar({ user, onLogout }) {
                               );
                               setLanguageOpen(false);
                             }}
-                            className={`w-full flex items-center px-3 py-2.5 rounded-lg text-sm text-left transition-colors ${
-                              (i18n.language || "en") === lang.code
+                            className={`w-full flex items-center px-3 py-2.5 rounded-lg text-sm text-left transition-colors ${(i18n.language || "en") === lang.code
                                 ? "bg-green-50 text-green-700 font-medium"
                                 : "text-gray-700 hover:bg-gray-50"
-                            }`}
+                              }`}
                           >
                             <span>{lang.name}</span>
                           </button>
@@ -801,10 +791,9 @@ export default function Navbar({ user, onLogout }) {
                       px-3 py-3
                       rounded-lg
                       text-sm font-medium
-                      ${
-                        active
-                          ? "bg-green-50 text-green-700"
-                          : "text-gray-600 hover:bg-gray-50"
+                      ${active
+                        ? "bg-green-50 text-green-700"
+                        : "text-gray-600 hover:bg-gray-50"
                       }
                     `}
                   >

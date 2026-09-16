@@ -1,7 +1,9 @@
 import mongoose from "mongoose";
 
 import Lot from "../models/lot.model.js";
+import Order from "../models/order.model.js";
 import PurchaseRequest from "../models/purchaseRequest.model.js";
+import User from "../models/user.model.js";
 
 const SELLER_ROLES = ["farmer", "fpo"];
 
@@ -17,6 +19,30 @@ const normalizeQuantity = (quantity) => {
   }
 
   return value;
+};
+
+const generateOrderNumber = () => {
+  const timestamp = Date.now().toString(36).toUpperCase();
+  const randomPart = Math.random().toString(36).slice(2, 8).toUpperCase();
+
+  return `BF-${timestamp}-${randomPart}`;
+};
+
+const populatePurchaseRequest = (requestId) => {
+  return PurchaseRequest.findById(requestId)
+    .populate(
+      "lotId",
+      "commodity quantity reservedQuantity unit grade expectedPrice pickupLocation availableDate transportation status"
+    )
+    .populate(
+      "buyerId",
+      "name organizationName mobile email businessType"
+    )
+    .populate(
+      "sellerId",
+      "name organizationName role district state"
+    )
+    .lean();
 };
 
 const createPurchaseRequest = async ({
@@ -62,9 +88,12 @@ const createPurchaseRequest = async ({
     throw new Error("You cannot purchase your own lot.");
   }
 
-  if (requestedQuantity > lot.quantity) {
+  const reservedQuantity = Number(lot.reservedQuantity) || 0;
+  const availableQuantity = lot.quantity - reservedQuantity;
+
+  if (requestedQuantity > availableQuantity) {
     throw new Error(
-      `Requested quantity cannot exceed the available quantity of ${lot.quantity} quintals.`
+      `Requested quantity cannot exceed the available quantity of ${availableQuantity} quintals.`
     );
   }
 
@@ -101,20 +130,7 @@ const createPurchaseRequest = async ({
     status: "pending",
   });
 
-  return PurchaseRequest.findById(purchaseRequest._id)
-    .populate(
-      "lotId",
-      "commodity quantity unit grade expectedPrice pickupLocation availableDate transportation status"
-    )
-    .populate(
-      "buyerId",
-      "name organizationName mobile email"
-    )
-    .populate(
-      "sellerId",
-      "name organizationName role"
-    )
-    .lean();
+  return populatePurchaseRequest(purchaseRequest._id);
 };
 
 const getBuyerPurchaseRequests = async ({
@@ -145,7 +161,7 @@ const getBuyerPurchaseRequests = async ({
     PurchaseRequest.find(filter)
       .populate(
         "lotId",
-        "commodity quantity unit grade expectedPrice pickupLocation availableDate transportation status"
+        "commodity quantity reservedQuantity unit grade expectedPrice pickupLocation availableDate transportation status"
       )
       .populate(
         "sellerId",
@@ -198,7 +214,7 @@ const getSellerPurchaseRequests = async ({
     PurchaseRequest.find(filter)
       .populate(
         "lotId",
-        "commodity quantity unit grade expectedPrice pickupLocation availableDate transportation status"
+        "commodity quantity reservedQuantity unit grade expectedPrice pickupLocation availableDate transportation status"
       )
       .populate(
         "buyerId",
@@ -235,20 +251,7 @@ const getPurchaseRequestById = async ({
     throw new Error("Invalid user ID.");
   }
 
-  const request = await PurchaseRequest.findById(requestId)
-    .populate(
-      "lotId",
-      "commodity quantity unit grade expectedPrice pickupLocation availableDate transportation status"
-    )
-    .populate(
-      "buyerId",
-      "name organizationName mobile email businessType"
-    )
-    .populate(
-      "sellerId",
-      "name organizationName role district state"
-    )
-    .lean();
+  const request = await populatePurchaseRequest(requestId);
 
   if (!request) {
     throw new Error("Purchase request not found.");
@@ -264,9 +267,216 @@ const getPurchaseRequestById = async ({
   return request;
 };
 
+const respondToPurchaseRequest = async ({
+  requestId,
+  sellerId,
+  action,
+  sellerNote = "",
+}) => {
+  if (!isValidObjectId(requestId)) {
+    throw new Error("Invalid purchase request ID.");
+  }
+
+  if (!isValidObjectId(sellerId)) {
+    throw new Error("Invalid seller ID.");
+  }
+
+  if (!["accept", "reject"].includes(action)) {
+    throw new Error(
+      "Invalid action. Action must be either accept or reject."
+    );
+  }
+
+  const seller = await User.findById(sellerId).select("role");
+
+  if (!seller || !SELLER_ROLES.includes(seller.role)) {
+    throw new Error(
+      "Seller is not eligible to respond to purchase requests."
+    );
+  }
+
+  const normalizedSellerNote = String(sellerNote).trim();
+
+  if (action === "reject") {
+    const purchaseRequest = await PurchaseRequest.findOneAndUpdate(
+      {
+        _id: requestId,
+        sellerId,
+        status: "pending",
+      },
+      {
+        $set: {
+          status: "rejected",
+          sellerNote: normalizedSellerNote,
+          respondedAt: new Date(),
+        },
+      },
+      {
+        new: true,
+      }
+    );
+
+    if (!purchaseRequest) {
+      const existingRequest = await PurchaseRequest.findById(requestId);
+
+      if (!existingRequest) {
+        throw new Error("Purchase request not found.");
+      }
+
+      if (String(existingRequest.sellerId) !== String(sellerId)) {
+        throw new Error("Access denied.");
+      }
+
+      throw new Error(
+        "Only pending purchase requests can be accepted or rejected."
+      );
+    }
+
+    return populatePurchaseRequest(purchaseRequest._id);
+  }
+
+  const session = await mongoose.startSession();
+
+  try {
+    let orderId;
+
+    await session.withTransaction(async () => {
+      const purchaseRequest = await PurchaseRequest.findOne({
+        _id: requestId,
+        sellerId,
+        status: "pending",
+      }).session(session);
+
+      if (!purchaseRequest) {
+        const existingRequest = await PurchaseRequest.findById(
+          requestId
+        ).session(session);
+
+        if (!existingRequest) {
+          throw new Error("Purchase request not found.");
+        }
+
+        if (String(existingRequest.sellerId) !== String(sellerId)) {
+          throw new Error("Access denied.");
+        }
+
+        throw new Error(
+          "Only pending purchase requests can be accepted or rejected."
+        );
+      }
+
+      const requestedQuantity = Number(purchaseRequest.quantity);
+
+      if (!Number.isFinite(requestedQuantity) || requestedQuantity <= 0) {
+        throw new Error("Purchase request quantity is invalid.");
+      }
+
+      const lot = await Lot.findOneAndUpdate(
+        {
+          _id: purchaseRequest.lotId,
+          sellerId,
+          status: "listed",
+          $expr: {
+            $gte: [
+              {
+                $subtract: [
+                  "$quantity",
+                  {
+                    $ifNull: ["$reservedQuantity", 0],
+                  },
+                ],
+              },
+              requestedQuantity,
+            ],
+          },
+        },
+        {
+          $inc: {
+            reservedQuantity: requestedQuantity,
+          },
+        },
+        {
+          new: true,
+          session,
+        }
+      );
+
+      if (!lot) {
+        throw new Error(
+          "The lot no longer has enough available quantity for this purchase request."
+        );
+      }
+
+      if (lot.reservedQuantity >= lot.quantity) {
+        lot.status = "reserved";
+        await lot.save({ session });
+      }
+
+      const order = await Order.create(
+        [
+          {
+            orderNumber: generateOrderNumber(),
+            purchaseRequestId: purchaseRequest._id,
+            lotId: purchaseRequest.lotId,
+            buyerId: purchaseRequest.buyerId,
+            sellerId: purchaseRequest.sellerId,
+            quantity: requestedQuantity,
+            unit: purchaseRequest.unit,
+            pricePerUnit: purchaseRequest.offeredPrice,
+            totalAmount: purchaseRequest.totalAmount,
+            transportation: purchaseRequest.transportation,
+            status: "confirmed",
+            paymentStatus: "pending",
+            fulfillmentStatus: "pending",
+            pickupLocation: lot.pickupLocation,
+            deliveryLocation: "",
+            placedAt: purchaseRequest.createdAt,
+            confirmedAt: new Date(),
+          },
+        ],
+        { session }
+      );
+
+      orderId = order[0]._id;
+
+      purchaseRequest.status = "accepted";
+      purchaseRequest.sellerNote = normalizedSellerNote;
+      purchaseRequest.respondedAt = new Date();
+
+      await purchaseRequest.save({ session });
+    });
+
+    const [request, order] = await Promise.all([
+      populatePurchaseRequest(requestId),
+      Order.findById(orderId)
+        .populate(
+          "lotId",
+          "commodity quantity reservedQuantity unit grade expectedPrice pickupLocation availableDate transportation status"
+        )
+        .populate(
+          "buyerId",
+          "name organizationName mobile email businessType"
+        )
+        .populate(
+          "sellerId",
+          "name organizationName role district state"
+        )
+        .lean(),
+    ]);
+
+    return {
+      request,
+      order,
+    };
+  } finally {
+    await session.endSession();
+  }
+};
+
 export {
   createPurchaseRequest,
   getBuyerPurchaseRequests,
   getSellerPurchaseRequests,
   getPurchaseRequestById,
+  respondToPurchaseRequest,
 };

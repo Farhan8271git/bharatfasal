@@ -67,3 +67,23 @@ export const getPurchaseRequestById = async (requestId) => {
     }
   );
 };
+
+export const respondToPurchaseRequest = async (
+  requestId,
+  {
+    action,
+    sellerNote = "",
+  }
+) => {
+  return apiRequest(
+    `/purchase-requests/${encodeURIComponent(requestId)}/respond`,
+    {
+      method: "PATCH",
+      auth: true,
+      body: {
+        action,
+        sellerNote,
+      },
+    }
+  );
+};

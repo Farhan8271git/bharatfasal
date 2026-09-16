@@ -3,6 +3,7 @@ import {
   getBuyerPurchaseRequests,
   getSellerPurchaseRequests,
   getPurchaseRequestById,
+  respondToPurchaseRequest,
 } from "../services/purchaseRequest.service.js";
 
 const getErrorStatus = (error) => {
@@ -127,6 +128,42 @@ export const getPurchaseRequestByIdController = async (
       message:
         error?.message ||
         "Unable to retrieve purchase request.",
+    });
+  }
+};
+
+export const respondToPurchaseRequestController = async (
+  req,
+  res
+) => {
+  try {
+    const result = await respondToPurchaseRequest({
+      requestId: req.params.id,
+      sellerId: req.user.id,
+      action: req.body.action,
+      sellerNote: req.body.sellerNote,
+    });
+
+    if (req.body.action === "accept") {
+      return res.status(200).json({
+        success: true,
+        message: "Purchase request accepted successfully.",
+        request: result.request,
+        order: result.order,
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: "Purchase request rejected successfully.",
+      request: result.request,
+    });
+  } catch (error) {
+    return res.status(getErrorStatus(error)).json({
+      success: false,
+      message:
+        error?.message ||
+        "Unable to respond to purchase request.",
     });
   }
 };

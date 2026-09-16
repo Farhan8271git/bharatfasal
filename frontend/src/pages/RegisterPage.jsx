@@ -248,10 +248,10 @@ const RegisterPage = ({ onLogin }) => {
         state: backendUser.state || "",
       };
 
-      localStorage.setItem("bf_auth_token", loginResponse.token);
-      localStorage.setItem("bf_logged_in", "true");
-      localStorage.setItem("bf_user_role", backendUser.role);
-      localStorage.setItem(
+      sessionStorage.setItem("bf_auth_token", loginResponse.token);
+      sessionStorage.setItem("bf_logged_in", "true");
+      sessionStorage.setItem("bf_user_role", backendUser.role);
+      sessionStorage.setItem(
         "bf_registered_user",
         JSON.stringify(user)
       );

@@ -89,11 +89,7 @@ const getSellerName = (seller) => {
     return "Verified Seller";
   }
 
-  return (
-    seller.organizationName ||
-    seller.name ||
-    "Verified Seller"
-  );
+  return seller.organizationName || seller.name || "Verified Seller";
 };
 
 const getSellerType = (seller) => {
@@ -113,14 +109,19 @@ const getSellerRating = () => {
 };
 
 const normalizeLot = (lot) => {
-  const quantity = Number(lot.quantity) || 0;
+  const totalQuantity = Number(lot.quantity) || 0;
+  const reservedQuantity = Number(lot.reservedQuantity) || 0;
+  const availableQuantity = Math.max(
+    0,
+    totalQuantity - reservedQuantity
+  );
   const price = Number(lot.expectedPrice) || 0;
 
   return {
     id: lot._id,
     crop: getCropName(lot.commodity),
     variety: "",
-    quantity,
+    quantity: availableQuantity,
     grade: getGradeLabel(lot.grade),
     price,
     location: lot.pickupLocation || "Location not specified",
@@ -153,7 +154,6 @@ export default function BrowseLotsPage({ user }) {
   const [requestSubmitting, setRequestSubmitting] = useState(false);
   const [requestError, setRequestError] = useState("");
   const [purchaseRequest, setPurchaseRequest] = useState(null);
-
 
   const buyerName =
     user?.companyName ||
@@ -188,7 +188,7 @@ export default function BrowseLotsPage({ user }) {
         if (isMounted) {
           setError(
             requestError?.message ||
-            "Unable to load available lots."
+              "Unable to load available lots."
           );
         }
       } finally {
@@ -358,7 +358,7 @@ export default function BrowseLotsPage({ user }) {
       if (!response?.success) {
         throw new Error(
           response?.message ||
-          "Unable to create the purchase request."
+            "Unable to create the purchase request."
         );
       }
 
@@ -367,7 +367,7 @@ export default function BrowseLotsPage({ user }) {
     } catch (error) {
       setRequestError(
         error?.message ||
-        "Unable to send the purchase request. Please try again."
+          "Unable to send the purchase request. Please try again."
       );
     } finally {
       setRequestSubmitting(false);
@@ -379,9 +379,10 @@ export default function BrowseLotsPage({ user }) {
     : 0;
 
   const requestedLandedCost =
-    selectedLot?.transportCost === null
-      ? null
-      : requestedProduceCost + selectedLot.transportCost;
+    selectedLot && selectedLot.transportCost !== null
+      ? requestedProduceCost + selectedLot.transportCost
+      : null;
+
   return (
     <div className="w-full max-w-[1500px] mx-auto px-4 sm:px-6 lg:px-8 py-6 pb-10">
       <div className="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-4 mb-6">
@@ -808,8 +809,8 @@ export default function BrowseLotsPage({ user }) {
                       <p className="text-sm font-bold text-gray-900 mt-1">
                         {lot.transportCost > 0
                           ? `Estimated: ${formatCurrency(
-                            lot.transportCost
-                          )}`
+                              lot.transportCost
+                            )}`
                           : "Cost calculated during procurement"}
                       </p>
                     </div>
@@ -828,7 +829,9 @@ export default function BrowseLotsPage({ user }) {
                       <p className="text-xs text-green-700 mt-1">
                         {landedPerQuintal === null
                           ? "Transportation cost pending"
-                          : `${formatCurrency(landedPerQuintal)} / quintal`}
+                          : `${formatCurrency(
+                              landedPerQuintal
+                            )} / quintal`}
                       </p>
                     </div>
                   </div>
@@ -1025,8 +1028,8 @@ export default function BrowseLotsPage({ user }) {
                   <p className="text-sm font-bold text-gray-900">
                     {selectedLot.transportCost > 0
                       ? formatCurrency(
-                        selectedLot.transportCost
-                      )
+                          selectedLot.transportCost
+                        )
                       : "Calculated during procurement"}
                   </p>
                 </div>
@@ -1064,8 +1067,8 @@ export default function BrowseLotsPage({ user }) {
                     <span className="font-medium text-gray-900">
                       {selectedLot.transportCost > 0
                         ? formatCurrency(
-                          selectedLot.transportCost
-                        )
+                            selectedLot.transportCost
+                          )
                         : "Calculated during procurement"}
                     </span>
                   </div>
@@ -1126,8 +1129,6 @@ export default function BrowseLotsPage({ user }) {
                   </div>
                 </div>
               </div>
-
-
 
               <button
                 type="button"
@@ -1312,15 +1313,19 @@ export default function BrowseLotsPage({ user }) {
                     Number(requestQuantity) <= 0 ||
                     Number(requestQuantity) > selectedLot.quantity
                   }
-                  className=" w-full h-11
+                  className="
+                    w-full
+                    h-11
                     mt-5
-                   rounded-xl
-                   bg-green-600
-                   text-white
-                   font-semibold
-                   hover:bg-green-700
-                   disabled:opacity-50
-                   disabled:cursor-not-allowe " >
+                    rounded-xl
+                    bg-green-600
+                    text-white
+                    font-semibold
+                    hover:bg-green-700
+                    disabled:opacity-50
+                    disabled:cursor-not-allowed
+                  "
+                >
                   {requestSubmitting
                     ? "Sending Request..."
                     : "Send Purchase Request"}
@@ -1401,20 +1406,19 @@ export default function BrowseLotsPage({ user }) {
                     </div>
                   )}
 
-
                   <button
                     type="button"
                     onClick={closeModal}
                     className="
-                    mt-6
-                    h-10
-                    px-6
-                    rounded-lg
-                    bg-gray-900
-                    text-white
-                    text-sm
-                    font-semibold
-                  "
+                      mt-6
+                      h-10
+                      px-6
+                      rounded-lg
+                      bg-gray-900
+                      text-white
+                      text-sm
+                      font-semibold
+                    "
                   >
                     Done
                   </button>
