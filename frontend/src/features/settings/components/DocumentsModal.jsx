@@ -2,6 +2,7 @@ import { FileCheck2 } from "lucide-react";
 import Modal from "../../../components/ui/Modal";
 import DocumentCheck from "../../../components/ui/DocumentCheck";
 
+/** Render the settings modal for choosing identity documents. */
 export default function DocumentsModal({
   open,
   onClose,

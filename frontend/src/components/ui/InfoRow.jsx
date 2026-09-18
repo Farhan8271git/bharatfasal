@@ -1,3 +1,4 @@
+/** Render a labelled information row with optional trailing content. */
 function InfoRow({ label, value, right, onClick }) {
   const content = (
     <div className="py-3.5">

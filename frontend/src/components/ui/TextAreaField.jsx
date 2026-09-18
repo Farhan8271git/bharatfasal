@@ -1,3 +1,4 @@
+/** Render a labelled multiline input controlled by its parent. */
 function TextAreaField({ label, value, onChange }) {
   return (
     <div>

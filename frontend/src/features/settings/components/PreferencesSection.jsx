@@ -7,6 +7,7 @@ import {
 import CardHeader from "../../../components/ui/CardHeader";
 import PreferenceRow from "../../../components/ui/PreferenceRow";
 
+/** Render a summary of the user's marketplace preferences. */
 export default function PreferencesSection({
   preferences,
   onOpenPreferences,

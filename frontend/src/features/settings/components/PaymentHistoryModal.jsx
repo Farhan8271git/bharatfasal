@@ -1,6 +1,7 @@
 import Modal from "../../../components/ui/Modal";
 import PaymentHistoryItem from "../../../components/ui/PaymentHistoryItem";
 
+/** Render the user's complete payment history in a modal. */
 export default function PaymentHistoryModal({
   open,
   onClose,

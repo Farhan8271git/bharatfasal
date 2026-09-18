@@ -1,3 +1,4 @@
+/** Render a clickable settings row with an icon and supporting text. */
 function ActionRow({ icon: Icon, title, subtitle, onClick }) {
   return (
     <button

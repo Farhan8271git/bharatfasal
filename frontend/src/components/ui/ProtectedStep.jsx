@@ -1,3 +1,4 @@
+/** Render one numbered step in the protected-payment workflow. */
 function ProtectedStep({ number, title, text }) {
   return (
     <div className="flex items-start gap-3">

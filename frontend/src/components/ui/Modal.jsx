@@ -1,3 +1,4 @@
+/** Render a dismissible modal containing settings content. */
 function Modal({ title, subtitle, children, onClose }) {
   return (
     <div

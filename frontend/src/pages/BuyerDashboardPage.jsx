@@ -187,6 +187,7 @@ const normalizeDemand = (demand) => {
   };
 };
 
+/** Render the buyer dashboard with order, demand, and verification activity. */
 export default function BuyerDashboardPage({ user }) {
   const navigate = useNavigate();
 

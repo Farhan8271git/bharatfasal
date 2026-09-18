@@ -7,6 +7,7 @@ import {
 
 import Modal from "../../../components/ui/Modal";
 
+/** Render the form for editing the user's profile details. */
 export default function ProtectedPaymentModal({
   open,
   onClose,

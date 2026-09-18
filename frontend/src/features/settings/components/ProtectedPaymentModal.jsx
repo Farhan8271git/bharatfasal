@@ -2,6 +2,7 @@ import { LockKeyhole, ShieldCheck } from "lucide-react";
 import Modal from "../../../components/ui/Modal";
 import InputField from "../../../components/ui/InputField";
 
+/** Explain the protected-payment process in a modal. */
 export default function ProtectedPaymentModal({
   isOpen,
   onClose,

@@ -7,6 +7,7 @@ import {
 import CardHeader from "../../../components/ui/CardHeader";
 import VerificationBadge from "../../../components/ui/VerificationBadge";
 
+/** Render verification progress and the appropriate next action. */
 export default function VerificationSection({
   isBuyer,
   isVerified,

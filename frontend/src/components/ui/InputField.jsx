@@ -1,3 +1,4 @@
+/** Render a labelled text input controlled by its parent. */
 function InputField({ label, value, onChange, placeholder }) {
   return (
     <div>

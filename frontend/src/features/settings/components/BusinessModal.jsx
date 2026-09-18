@@ -2,6 +2,7 @@ import Modal from "../../../components/ui/Modal";
 import InputField from "../../../components/ui/InputField";
 import TextAreaField from "../../../components/ui/TextAreaField";
 
+/** Render the form for editing a user's business details. */
 export default function BusinessModal({
   open,
   onClose,

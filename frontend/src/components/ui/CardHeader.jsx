@@ -1,3 +1,4 @@
+/** Render a card heading with an icon, title, and optional subtitle. */
 function CardHeader({ icon: Icon, iconClass, iconBg, title, subtitle }) {
   return (
     <div className="flex items-center gap-3 px-5 py-4 border-b border-gray-100">

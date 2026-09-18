@@ -6,6 +6,7 @@ import {
 import CardHeader from "../../../components/ui/CardHeader";
 import DocumentCheck from "../../../components/ui/DocumentCheck";
 
+/** Render the user's selected identity documents and edit action. */
 export default function DocumentsSection({
   documents,
   onManageDocuments,

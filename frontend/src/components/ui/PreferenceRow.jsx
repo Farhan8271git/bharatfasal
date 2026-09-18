@@ -1,3 +1,4 @@
+/** Render the current value of a named user preference. */
 function PreferenceRow({ label, value }) {
   return (
     <div className="py-3.5 border-b border-gray-100">

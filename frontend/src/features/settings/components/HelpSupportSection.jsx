@@ -6,6 +6,7 @@ import {
 } from "lucide-react";
 import CardHeader from "../../../components/ui/CardHeader";
 
+/** Render help topics and support contact actions. */
 export default function HelpSupportSection({
   onHelp,
   onContactSupport,

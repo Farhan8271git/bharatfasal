@@ -2,6 +2,7 @@ import { MapPin, Phone, UserRound } from "lucide-react";
 import CardHeader from "../../../components/ui/CardHeader";
 import VerificationBadge from "../../../components/ui/VerificationBadge";
 
+/** Render a summary of the user's profile and its edit action. */
 export default function ProfileSection({
   isBuyer,
   profile,

@@ -2,6 +2,7 @@ import Modal from "../../../components/ui/Modal";
 import InputField from "../../../components/ui/InputField";
 import TextAreaField from "../../../components/ui/TextAreaField";
 
+/** Render controls for editing marketplace preferences. */
 export default function PreferencesModal({
   open,
   onClose,
@@ -79,4 +80,4 @@ export default function PreferencesModal({
       </div>
     </Modal>
   );
-} 
+}

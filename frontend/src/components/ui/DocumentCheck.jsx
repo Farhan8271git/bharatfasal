@@ -1,5 +1,6 @@
 import { FileCheck } from "lucide-react";
 
+/** Render a labelled checkbox for selecting a verification document. */
 function DocumentCheck({ label, checked, onChange }) {
   return (
     <label className="flex items-center gap-3 p-3 rounded-lg border border-gray-200 hover:bg-gray-50 cursor-pointer">

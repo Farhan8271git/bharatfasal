@@ -1,3 +1,4 @@
+/** Render an icon button that opens a modal action. */
 function ModalButton({ onClick, icon: Icon, label }) {
   return (
     <button

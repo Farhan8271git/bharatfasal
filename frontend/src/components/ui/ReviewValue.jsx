@@ -1,3 +1,4 @@
+/** Render a labelled value in a verification review summary. */
 function ReviewValue({ label, value }) {
   return (
     <div className="flex items-start justify-between gap-4 py-2 border-b border-gray-100">

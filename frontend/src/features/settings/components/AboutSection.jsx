@@ -5,6 +5,7 @@ import {
 } from "lucide-react";
 import CardHeader from "../../../components/ui/CardHeader";
 
+/** Render product and legal information for the settings page. */
 export default function AboutSection({
   appVersion,
   onTerms,

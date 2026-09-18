@@ -11,6 +11,7 @@ import Modal from "../../../components/ui/Modal";
 import InputField from "../../../components/ui/InputField";
 import DocumentCheck from "../../../components/ui/DocumentCheck";
 
+/** Render the multi-step identity verification form. */
 export default function VerificationModal({
   open,
   onClose,

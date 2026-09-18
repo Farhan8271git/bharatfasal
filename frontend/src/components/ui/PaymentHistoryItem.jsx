@@ -1,5 +1,6 @@
 import { IndianRupee } from "lucide-react";
 
+/** Render a single order payment entry with its current status. */
 function PaymentHistoryItem({ order, crop, amount, status }) {
   return (
     <div className="flex items-center gap-3 p-3 rounded-xl border border-gray-200">

@@ -7,6 +7,7 @@ import {
 import CardHeader from "../../../components/ui/CardHeader";
 import InfoRow from "../../../components/ui/InfoRow";
 
+/** Render a summary of the user's saved business details. */
 export default function BusinessSection({
   businessDetails,
   onManageBusiness,

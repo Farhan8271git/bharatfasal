@@ -7,6 +7,7 @@ import {
 import CardHeader from "../../../components/ui/CardHeader";
 import InfoRow from "../../../components/ui/InfoRow";
 
+/** Render a summary of saved payment details and recent history. */
 export default function PaymentSection({
   paymentDetails,
   onManagePayment,

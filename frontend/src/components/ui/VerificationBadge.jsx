@@ -1,3 +1,4 @@
+/** Render a badge describing the user's verification status. */
 function VerificationBadge({ status }) {
   if (status === "approved") {
     return (

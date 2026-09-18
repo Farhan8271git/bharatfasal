@@ -1,6 +1,7 @@
 import Modal from "../../../components/ui/Modal";
 import InputField from "../../../components/ui/InputField";
 
+/** Render the form for editing saved payment information. */
 export default function PaymentModal({
   open,
   onClose,

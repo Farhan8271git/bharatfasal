@@ -1,6 +1,7 @@
 import { Globe2, Languages } from "lucide-react";
 import CardHeader from "../../../components/ui/CardHeader";
 
+/** Render the language selector for application preferences. */
 export default function LanguageSection({
   language,
   onManageLanguage,

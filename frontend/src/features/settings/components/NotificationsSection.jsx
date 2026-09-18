@@ -7,6 +7,7 @@ import {
 import CardHeader from "../../../components/ui/CardHeader";
 import PreferenceRow from "../../../components/ui/PreferenceRow";
 
+/** Render controls for the user's notification preferences. */
 export default function NotificationsSection({
   notifications,
   onManageNotifications,
