@@ -1,7 +1,7 @@
 # 🌾 Bharat Fasal
 
-> SIH 2026 Prototype <br>
-> it's a prototype that's the reason i am not providing all the details 
+> SIH 2026  <br>
+> project is under development phase  
 
 ## 📌 About the Project
 
