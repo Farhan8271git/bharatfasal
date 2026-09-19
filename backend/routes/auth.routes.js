@@ -1,40 +1,33 @@
 import express from "express";
-
 import {
   register,
   login,
+  logout,
   getCurrentUser,
   farmerTest,
-  forgotPassword,
-  resetPasswordController,
+  sendPasswordOtp,
+  verifyPasswordOtp,
+  resetUserPassword,
 } from "../controllers/auth.controller.js";
-
 import protect from "../middleware/auth.middleware.js";
 import authorize from "../middleware/role.middleware.js";
 
 const router = express.Router();
 
-// register new user
 router.post("/register", register);
 
-// login existing user
 router.post("/login", login);
 
-// forgot password
-router.post("/forgot-password", forgotPassword);
+router.post("/logout", protect, logout);
 
-// reset password
-router.post("/reset-password", resetPasswordController);
-
-// get current authenticated user
 router.get("/me", protect, getCurrentUser);
 
-// farmer authorization test
-router.get(
-  "/farmer-test",
-  protect,
-  authorize("farmer"),
-  farmerTest
-);
+router.post("/forgot-password/send-otp", sendPasswordOtp);
+
+router.post("/forgot-password/verify-otp", verifyPasswordOtp);
+
+router.post("/forgot-password/reset", resetUserPassword);
+
+router.get( "/farmer-test", protect, authorize("farmer"), farmerTest);
 
 export default router;

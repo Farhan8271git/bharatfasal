@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
+import { registerUser, loginUser } from '../api/auth.api'
 import {
   User,
   Phone,
@@ -54,7 +55,7 @@ const states = [
   "Other",
 ];
 
-const RegisterPage = () => {
+const RegisterPage = ({ onLogin }) => {
   const navigate = useNavigate();
 
   const [formData, setFormData] = useState({
@@ -75,6 +76,7 @@ const RegisterPage = () => {
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [agreeTerms, setAgreeTerms] = useState(false);
   const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -114,18 +116,22 @@ const RegisterPage = () => {
   };
 
   // register user
+
   const handleSubmit = async (e) => {
     e.preventDefault();
+
+    if (loading) {
+      return;
+    }
 
     const name = formData.name.trim();
     const organizationName = formData.organizationName.trim();
 
-    // Name
     if (!name) {
       setError(
         formData.role === "farmer"
           ? "Please enter your full name."
-          : "Please enter the authorized person's name.",
+          : "Please enter the authorized person's name."
       );
       return;
     }
@@ -135,7 +141,6 @@ const RegisterPage = () => {
       return;
     }
 
-    // Organization
     if (
       (formData.role === "fpo" || formData.role === "buyer") &&
       !organizationName
@@ -143,42 +148,36 @@ const RegisterPage = () => {
       setError(
         formData.role === "fpo"
           ? "Please enter your FPO / organization name."
-          : "Please enter your business / organization name.",
+          : "Please enter your business / organization name."
       );
       return;
     }
 
-    // Mobile
-    if (!/^[0-9]{10}$/.test(formData.phone)) {
+    if (!/^[6-9][0-9]{9}$/.test(formData.phone)) {
       setError("Please enter a valid 10-digit mobile number.");
       return;
     }
 
-    // District
     if (!formData.district.trim()) {
       setError("Please enter your district.");
       return;
     }
 
-    // State
     if (!formData.state) {
       setError("Please select your state.");
       return;
     }
 
-    // Farmer village
     if (formData.role === "farmer" && !formData.village.trim()) {
       setError("Please enter your village / town.");
       return;
     }
 
-    // Buyer business type
     if (formData.role === "buyer" && !formData.businessType.trim()) {
       setError("Please enter your business type.");
       return;
     }
 
-    // Password
     if (formData.password.length < 6) {
       setError("Password must be at least 6 characters.");
       return;
@@ -189,52 +188,81 @@ const RegisterPage = () => {
       return;
     }
 
-    // Terms
     if (!agreeTerms) {
       setError("Please accept the Terms & Conditions.");
       return;
     }
 
-    // prepare backend registration payload
     const registrationData = {
       role: formData.role,
       name,
+      organizationName,
       mobile: formData.phone,
       email: formData.email.trim(),
       village: formData.village.trim(),
       district: formData.district.trim(),
       state: formData.state,
+      businessType: formData.businessType.trim(),
       password: formData.password,
       termsAccepted: true,
     };
 
+    setLoading(true);
+    setError("");
+
     try {
-      // send registration request
-      const response = await fetch("/api/auth/register", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(registrationData),
-      });
+      const response = await registerUser(registrationData);
 
-      const data = await response.json();
-
-      if (!response.ok) {
-        setError(data.message || "Registration failed.");
-        return;
+      if (!response?.success || !response?.user) {
+        throw new Error(
+          response?.message || "Registration failed. Please try again."
+        );
       }
 
-      // save safe user data returned by backend
-      localStorage.setItem(
+      const loginResponse = await loginUser({
+        mobile: formData.phone,
+        password: formData.password,
+      });
+
+      if (
+        !loginResponse?.success ||
+        !loginResponse?.token ||
+        !loginResponse?.user
+      ) {
+        throw new Error(
+          "Registration succeeded, but automatic login failed."
+        );
+      }
+
+      const backendUser = loginResponse.user;
+
+      const user = {
+        id: backendUser.id,
+        name: backendUser.name || "",
+        companyName: backendUser.organizationName || "",
+        email: backendUser.email || "",
+        role: backendUser.role,
+        location: backendUser.village || "",
+        phone: backendUser.mobile || "",
+        district: backendUser.district || "",
+        state: backendUser.state || "",
+      };
+
+      sessionStorage.setItem("bf_auth_token", loginResponse.token);
+      sessionStorage.setItem("bf_logged_in", "true");
+      sessionStorage.setItem("bf_user_role", backendUser.role);
+      sessionStorage.setItem(
         "bf_registered_user",
-        JSON.stringify(data.user),
+        JSON.stringify(user)
       );
 
-      navigate("/verification");
+      onLogin(user.role, user);
     } catch (error) {
-      console.error("Registration error:", error);
-      setError("Unable to connect to the server. Please try again.");
+      setError(
+        error?.message || "Registration failed. Please try again."
+      );
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -302,8 +330,8 @@ const RegisterPage = () => {
                         type="button"
                         onClick={() => handleRoleChange(role.id)}
                         className={`relative rounded-lg border p-2.5 text-left transition ${isSelected
-                            ? "border-green-700 bg-green-50"
-                            : "border-gray-200 bg-white hover:border-green-300 hover:bg-gray-50"
+                          ? "border-green-700 bg-green-50"
+                          : "border-gray-200 bg-white hover:border-green-300 hover:bg-gray-50"
                           }`}
                       >
                         {isSelected && (
@@ -647,10 +675,11 @@ const RegisterPage = () => {
                 {/* Submit */}
                 <button
                   type="submit"
-                  className="flex w-full items-center justify-center gap-2 rounded-lg bg-green-700 px-4 py-2.5 text-xs font-semibold text-white transition hover:bg-green-800"
+                  disabled={loading}
+                  className="flex w-full items-center justify-center gap-2 rounded-lg bg-green-700 px-4 py-2.5 text-xs font-semibold text-white transition hover:bg-green-800 disabled:cursor-not-allowed disabled:bg-gray-400"
                 >
-                  Create Account
-                  <ArrowRight size={15} />
+                  {loading ? "Creating Account..." : "Create Account"}
+                  {!loading && <ArrowRight size={15} />}
                 </button>
               </form>
 

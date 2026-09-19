@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 
@@ -14,91 +14,39 @@ import {
   Truck,
   CheckCircle2,
   Building2,
-  UserRound,
   Send,
   Eye,
   ShoppingCart,
   Clock3,
+  X,
 } from "lucide-react";
 
 import SearchBar from "../components/SearchBar";
-import BuyerCard from "../components/BuyerCard";
 
-import { buyers, demandBoard } from "../data/mockBuyers";
-import { commodities } from "../data/mockCommodities";
+import {
+  createDemand,
+  getMyDemands,
+  getMarketDemands,
+} from "../api/demands.api";
+
+import {
+  getLots,
+} from "../api/lots.api";
+
+import {
+  createPurchaseRequest,
+  getSellerPurchaseRequests,
+} from "../api/purchaseRequests.api";
 
 import {
   formatCurrency,
   getStatusColor,
 } from "../utils/formatters";
 
-
-// =====================================================
-// BUYER DEMO LOTS
-// =====================================================
-
-const availableLots = [
-  {
-    id: "BF-LOT-10452",
-    crop: "wheat",
-    quantity: "500 Quintals",
-    grade: "Grade A",
-    price: 2500,
-    pickupLocation: "Gorakhpur, Uttar Pradesh",
-    availableDate: "2026-09-05",
-    seller: "Shiv Farmers FPO",
-    sellerType: "FPO",
-    verified: true,
-    transportation: "buyer",
-  },
-  {
-    id: "BF-LOT-10431",
-    crop: "rice",
-    quantity: "300 Quintals",
-    grade: "Grade A",
-    price: 2900,
-    pickupLocation: "Karnal, Haryana",
-    availableDate: "2026-09-04",
-    seller: "Eastern Grain FPO",
-    sellerType: "FPO",
-    verified: true,
-    transportation: "seller",
-  },
-  {
-    id: "BF-LOT-10392",
-    crop: "soybean",
-    quantity: "200 Quintals",
-    grade: "Grade A",
-    price: 5200,
-    pickupLocation: "Indore, Madhya Pradesh",
-    availableDate: "2026-09-06",
-    seller: "Malwa Agro FPO",
-    sellerType: "FPO",
-    verified: true,
-    transportation: "seller",
-  },
-  {
-    id: "BF-LOT-10376",
-    crop: "maize",
-    quantity: "450 Quintals",
-    grade: "Premium",
-    price: 2350,
-    pickupLocation: "Madhya Pradesh",
-    availableDate: "2026-09-08",
-    seller: "Central India Farmers Group",
-    sellerType: "Farmer Group",
-    verified: true,
-    transportation: "buyer",
-  },
-];
-
-
-// =====================================================
-// HELPERS
-// =====================================================
-
 const getCommodityName = (crop, t) => {
-  if (!crop) return "Crop";
+  if (!crop) {
+    return "Crop";
+  }
 
   try {
     const translated = t(crop);
@@ -107,7 +55,7 @@ const getCommodityName = (crop, t) => {
       return translated;
     }
   } catch {
-    // fallback below
+    // Translation fallback.
   }
 
   return String(crop)
@@ -116,12 +64,14 @@ const getCommodityName = (crop, t) => {
 };
 
 const formatDate = (date) => {
-  if (!date) return "—";
+  if (!date) {
+    return "—";
+  }
 
   const parsed = new Date(date);
 
   if (Number.isNaN(parsed.getTime())) {
-    return date;
+    return String(date);
   }
 
   return parsed.toLocaleDateString("en-IN", {
@@ -131,10 +81,58 @@ const formatDate = (date) => {
   });
 };
 
+const normalizeLot = (lot) => {
+  const totalQuantity = Number(lot?.quantity) || 0;
+  const reservedQuantity = Number(lot?.reservedQuantity) || 0;
+  const availableQuantity = Math.max(
+    0,
+    totalQuantity - reservedQuantity
+  );
 
-// =====================================================
-// MAIN PAGE
-// =====================================================
+  const seller = lot?.sellerId || lot?.seller || {};
+
+  const sellerName =
+    seller?.name ||
+    seller?.organizationName ||
+    lot?.sellerName ||
+    "Seller";
+
+  const sellerType =
+    seller?.role ||
+    lot?.sellerType ||
+    "farmer";
+
+  const price =
+    Number(lot?.expectedPrice) ||
+    Number(lot?.price) ||
+    0;
+
+  return {
+    ...lot,
+    id: lot?._id || lot?.id,
+    crop: lot?.commodity || lot?.crop || "",
+    quantity: availableQuantity,
+    totalQuantity,
+    reservedQuantity,
+    grade: lot?.grade || "Not specified",
+    price,
+    pickupLocation:
+      lot?.pickupLocation ||
+      lot?.location ||
+      "Not specified",
+    availableDate:
+      lot?.availableDate ||
+      lot?.availabilityDate ||
+      null,
+    seller: sellerName,
+    sellerType,
+    verified:
+      Boolean(lot?.verified) ||
+      Boolean(seller?.verified),
+    transportation:
+      lot?.transportation || "buyer",
+  };
+};
 
 export default function BuyerMarketPage({ user }) {
   const { t } = useTranslation();
@@ -142,16 +140,10 @@ export default function BuyerMarketPage({ user }) {
 
   const [searchParams, setSearchParams] = useSearchParams();
 
-  // =====================================================
-  // ROLE
-  // =====================================================
-
   const isBuyer = user?.role === "buyer";
-  const isSeller = user?.role === "farmer" || user?.role === "fpo";
-
-  // =====================================================
-  // PAGE STATE
-  // =====================================================
+  const isSeller =
+    user?.role === "farmer" ||
+    user?.role === "fpo";
 
   const initialMode = searchParams.get("mode");
 
@@ -179,10 +171,6 @@ export default function BuyerMarketPage({ user }) {
   const [search, setSearch] = useState("");
   const [typeFilter, setTypeFilter] = useState("all");
 
-  // =====================================================
-  // POST DEMAND FORM
-  // =====================================================
-
   const [formData, setFormData] = useState({
     crop: "",
     quantity: "",
@@ -195,21 +183,251 @@ export default function BuyerMarketPage({ user }) {
 
   const [submitted, setSubmitted] = useState(false);
 
-  // =====================================================
-  // BUYER LOT FILTERS
-  // =====================================================
+  const [myDemands, setMyDemands] = useState([]);
+  const [demandLoading, setDemandLoading] = useState(false);
+  const [demandError, setDemandError] = useState("");
+
+  const [marketDemands, setMarketDemands] = useState([]);
+  const [marketDemandsLoading, setMarketDemandsLoading] =
+    useState(false);
+  const [marketDemandsError, setMarketDemandsError] =
+    useState("");
+
+  const [lots, setLots] = useState([]);
+  const [lotsLoading, setLotsLoading] = useState(false);
+  const [lotsError, setLotsError] = useState("");
+
+  const [sellerRequests, setSellerRequests] = useState([]);
+  const [sellerRequestsLoading, setSellerRequestsLoading] =
+    useState(false);
+  const [sellerRequestsError, setSellerRequestsError] =
+    useState("");
 
   const [lotSearch, setLotSearch] = useState("");
   const [lotGrade, setLotGrade] = useState("all");
 
-  // =====================================================
-  // TAB CHANGE
-  // =====================================================
+  const [selectedLot, setSelectedLot] = useState(null);
+  const [requestLot, setRequestLot] = useState(null);
+  const [requestQuantity, setRequestQuantity] = useState("");
+  const [requestLoading, setRequestLoading] = useState(false);
+  const [requestError, setRequestError] = useState("");
+  const [requestSuccess, setRequestSuccess] = useState("");
+
+  useEffect(() => {
+    if (!isBuyer) {
+      return;
+    }
+
+    let cancelled = false;
+
+    const fetchDemands = async () => {
+      setDemandLoading(true);
+      setDemandError("");
+
+      try {
+        const response = await getMyDemands({
+          status: "active",
+          page: 1,
+          limit: 20,
+        });
+
+        if (cancelled) {
+          return;
+        }
+
+        setMyDemands(
+          Array.isArray(response?.demands)
+            ? response.demands
+            : []
+        );
+      } catch (error) {
+        if (cancelled) {
+          return;
+        }
+
+        setDemandError(
+          error?.message ||
+            "Unable to load your demands."
+        );
+      } finally {
+        if (!cancelled) {
+          setDemandLoading(false);
+        }
+      }
+    };
+
+    fetchDemands();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isBuyer]);
+
+  useEffect(() => {
+    if (!isBuyer) {
+      return;
+    }
+
+    let cancelled = false;
+
+    const fetchLots = async () => {
+      setLotsLoading(true);
+      setLotsError("");
+
+      try {
+        const response = await getLots({
+          status: "listed",
+          page: 1,
+          limit: 100,
+        });
+
+        if (cancelled) {
+          return;
+        }
+
+        const receivedLots = Array.isArray(response?.lots)
+          ? response.lots
+          : [];
+
+        setLots(
+          receivedLots
+            .map(normalizeLot)
+            .filter((lot) => lot.id && lot.quantity > 0)
+        );
+      } catch (error) {
+        if (cancelled) {
+          return;
+        }
+
+        setLotsError(
+          error?.message ||
+            "Unable to load available lots."
+        );
+        setLots([]);
+      } finally {
+        if (!cancelled) {
+          setLotsLoading(false);
+        }
+      }
+    };
+
+    fetchLots();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isBuyer]);
+
+  useEffect(() => {
+    if (!isSeller) {
+      return;
+    }
+
+    let cancelled = false;
+
+    const fetchSellerRequests = async () => {
+      setSellerRequestsLoading(true);
+      setSellerRequestsError("");
+
+      try {
+        const response =
+          await getSellerPurchaseRequests({
+            status: "pending",
+            page: 1,
+            limit: 100,
+          });
+
+        if (cancelled) {
+          return;
+        }
+
+        setSellerRequests(
+          Array.isArray(response?.requests)
+            ? response.requests
+            : []
+        );
+      } catch (error) {
+        if (cancelled) {
+          return;
+        }
+
+        setSellerRequestsError(
+          error?.message ||
+            "Unable to load buyer requests."
+        );
+        setSellerRequests([]);
+      } finally {
+        if (!cancelled) {
+          setSellerRequestsLoading(false);
+        }
+      }
+    };
+
+    fetchSellerRequests();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isSeller]);
+
+  useEffect(() => {
+    if (!isSeller) {
+      return;
+    }
+
+    let cancelled = false;
+
+    const fetchMarketDemands = async () => {
+      setMarketDemandsLoading(true);
+      setMarketDemandsError("");
+
+      try {
+        const response = await getMarketDemands({
+          status: "active",
+          page: 1,
+          limit: 20,
+        });
+
+        if (cancelled) {
+          return;
+        }
+
+        setMarketDemands(
+          Array.isArray(response?.demands)
+            ? response.demands
+            : []
+        );
+      } catch (error) {
+        if (cancelled) {
+          return;
+        }
+
+        setMarketDemandsError(
+          error?.message ||
+            "Unable to load buyer demands."
+        );
+
+        setMarketDemands([]);
+      } finally {
+        if (!cancelled) {
+          setMarketDemandsLoading(false);
+        }
+      }
+    };
+
+    fetchMarketDemands();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isSeller]);
 
   const changeTab = (newTab) => {
     setTab(newTab);
-
     setSubmitted(false);
+    setDemandError("");
+    setRequestError("");
+    setRequestSuccess("");
 
     if (newTab === "post") {
       setSearchParams({ mode: "post" });
@@ -222,43 +440,101 @@ export default function BuyerMarketPage({ user }) {
     }
   };
 
-  // =====================================================
-  // SELLER → BUYER FILTER
-  // =====================================================
-
   const filteredBuyers = useMemo(() => {
-    return buyers.filter((buyer) => {
-      const searchText = search.toLowerCase();
+    const searchText = search.trim().toLowerCase();
 
-      const matchesSearch =
-        !searchText ||
-        buyer.name?.toLowerCase().includes(searchText) ||
-        buyer.location?.toLowerCase().includes(searchText);
+    const buyerMap = new Map();
 
-      const matchesType =
-        typeFilter === "all" ||
-        buyer.type === typeFilter;
+    sellerRequests.forEach((request) => {
+      const buyer = request?.buyerId;
 
-      return matchesSearch && matchesType;
+      if (!buyer) {
+        return;
+      }
+
+      const buyerId =
+        buyer?._id ||
+        buyer?.id ||
+        request?.buyerId;
+
+      if (!buyerMap.has(String(buyerId))) {
+        buyerMap.set(String(buyerId), {
+          id: buyerId,
+          name:
+            buyer?.name ||
+            buyer?.organizationName ||
+            "Buyer",
+          location: [
+            buyer?.district,
+            buyer?.state,
+          ]
+            .filter(Boolean)
+            .join(", "),
+          type:
+            buyer?.businessType ||
+            "buyer",
+          mobile: buyer?.mobile,
+          email: buyer?.email,
+          requestCount: 0,
+        });
+      }
+
+      buyerMap.get(String(buyerId)).requestCount += 1;
     });
-  }, [search, typeFilter]);
 
-  // =====================================================
-  // BUYER → LOT FILTER
-  // =====================================================
+    return Array.from(buyerMap.values()).filter(
+      (buyer) => {
+        const matchesSearch =
+          !searchText ||
+          buyer.name
+            ?.toLowerCase()
+            .includes(searchText) ||
+          buyer.location
+            ?.toLowerCase()
+            .includes(searchText);
+
+        const normalizedType =
+          String(buyer.type || "").toLowerCase();
+
+        const matchesType =
+          typeFilter === "all" ||
+          normalizedType ===
+            typeFilter.toLowerCase();
+
+        return matchesSearch && matchesType;
+      }
+    );
+  }, [
+    sellerRequests,
+    search,
+    typeFilter,
+  ]);
 
   const filteredLots = useMemo(() => {
-    const searchText = lotSearch.toLowerCase();
+    const searchText = lotSearch
+      .trim()
+      .toLowerCase();
 
-    return availableLots.filter((lot) => {
-      const cropName = getCommodityName(lot.crop, t);
+    return lots.filter((lot) => {
+      const cropName = getCommodityName(
+        lot.crop,
+        t
+      );
 
       const matchesSearch =
         !searchText ||
-        cropName.toLowerCase().includes(searchText) ||
-        lot.id.toLowerCase().includes(searchText) ||
-        lot.pickupLocation.toLowerCase().includes(searchText) ||
-        lot.seller.toLowerCase().includes(searchText);
+        cropName
+          .toLowerCase()
+          .includes(searchText) ||
+        String(lot.id)
+          .toLowerCase()
+          .includes(searchText) ||
+        lot.pickupLocation
+          ?.toLowerCase()
+          .includes(searchText) ||
+        lot.seller
+          ?.toLowerCase()
+          .includes(searchText);
 
       const matchesGrade =
         lotGrade === "all" ||
@@ -266,26 +542,35 @@ export default function BuyerMarketPage({ user }) {
 
       return matchesSearch && matchesGrade;
     });
-  }, [lotSearch, lotGrade, t]);
+  }, [
+    lots,
+    lotSearch,
+    lotGrade,
+    t,
+  ]);
 
-  // =====================================================
-  // FORM INPUT
-  // =====================================================
+  const availableGrades = useMemo(() => {
+    const grades = new Set();
+
+    lots.forEach((lot) => {
+      if (lot.grade) {
+        grades.add(lot.grade);
+      }
+    });
+
+    return Array.from(grades);
+  }, [lots]);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
 
-    setFormData((prev) => ({
-      ...prev,
+    setFormData((previous) => ({
+      ...previous,
       [name]: value,
     }));
   };
 
-  // =====================================================
-  // FORM SUBMIT
-  // =====================================================
-
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
 
     if (
@@ -297,28 +582,78 @@ export default function BuyerMarketPage({ user }) {
       !formData.deadline ||
       !formData.transportation
     ) {
+      setDemandError(
+        "Please complete all required fields."
+      );
       return;
     }
 
-    setSubmitted(true);
+    const quantity = Number(formData.quantity);
+    const estimatedPrice = Number(
+      formData.estimatedPrice
+    );
 
-    console.log("New Buyer Demand:", {
-      ...formData,
-      buyerId: user?.id,
-      buyerName:
-        user?.companyName ||
-        user?.businessName ||
-        user?.name ||
-        "Buyer",
-    });
+    if (!Number.isFinite(quantity) || quantity <= 0) {
+      setDemandError(
+        "Quantity must be greater than zero."
+      );
+      return;
+    }
+
+    if (
+      !Number.isFinite(estimatedPrice) ||
+      estimatedPrice < 0
+    ) {
+      setDemandError(
+        "Estimated price must be a valid amount."
+      );
+      return;
+    }
+
+    setDemandLoading(true);
+    setDemandError("");
+
+    try {
+      const response = await createDemand({
+        commodity: formData.crop,
+        quantity,
+        grade: formData.grade,
+        estimatedPrice,
+        deliveryLocation:
+          formData.deliveryLocation.trim(),
+        deadline: formData.deadline,
+        transportation:
+          formData.transportation,
+      });
+
+      const createdDemand =
+        response?.demand;
+
+      if (!createdDemand) {
+        throw new Error(
+          "Demand was created but no demand data was returned."
+        );
+      }
+
+      setMyDemands((previousDemands) => [
+        createdDemand,
+        ...previousDemands,
+      ]);
+
+      setSubmitted(true);
+    } catch (error) {
+      setDemandError(
+        error?.message ||
+          "Unable to create buyer demand."
+      );
+    } finally {
+      setDemandLoading(false);
+    }
   };
-
-  // =====================================================
-  // RESET FORM
-  // =====================================================
 
   const resetForm = () => {
     setSubmitted(false);
+    setDemandError("");
 
     setFormData({
       crop: "",
@@ -331,37 +666,109 @@ export default function BuyerMarketPage({ user }) {
     });
   };
 
+  const openRequestModal = (lot) => {
+    setRequestLot(lot);
+    setRequestQuantity("");
+    setRequestError("");
+    setRequestSuccess("");
+  };
 
-  // =====================================================
-  // RENDER
-  // =====================================================
+  const closeRequestModal = () => {
+    if (requestLoading) {
+      return;
+    }
+
+    setRequestLot(null);
+    setRequestQuantity("");
+    setRequestError("");
+    setRequestSuccess("");
+  };
+
+  const handleRequestToBuy = async (e) => {
+    e.preventDefault();
+
+    if (!requestLot?.id) {
+      setRequestError(
+        "Lot information is missing."
+      );
+      return;
+    }
+
+    const quantity = Number(
+      requestQuantity
+    );
+
+    if (
+      !Number.isFinite(quantity) ||
+      quantity <= 0
+    ) {
+      setRequestError(
+        "Enter a valid quantity."
+      );
+      return;
+    }
+
+    if (quantity > requestLot.quantity) {
+      setRequestError(
+        `Maximum available quantity is ${requestLot.quantity} quintals.`
+      );
+      return;
+    }
+
+    setRequestLoading(true);
+    setRequestError("");
+    setRequestSuccess("");
+
+    try {
+      await createPurchaseRequest({
+        lotId: requestLot.id,
+        quantity,
+      });
+
+      setRequestSuccess(
+        "Purchase request sent successfully."
+      );
+
+      setLots((previousLots) =>
+        previousLots.map((lot) => {
+          if (lot.id !== requestLot.id) {
+            return lot;
+          }
+
+          return {
+            ...lot,
+            quantity: Math.max(
+              0,
+              lot.quantity - quantity
+            ),
+          };
+        })
+      );
+    } catch (error) {
+      setRequestError(
+        error?.message ||
+          "Unable to send purchase request."
+      );
+    } finally {
+      setRequestLoading(false);
+    }
+  };
 
   return (
     <div className="w-full max-w-[1500px] mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-5">
 
-      {/* =====================================================
-          SELLER VIEW
-      ===================================================== */}
-
       {isSeller && (
         <>
-
-          {/* PAGE HEADER */}
-
           <section className="bg-white border border-gray-200 rounded-xl px-5 py-5">
-
             <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
-
               <div>
-
                 <div className="flex items-center gap-2 text-xs text-gray-500 mb-2">
                   <span>Seller Marketplace</span>
                   <span className="text-gray-300">/</span>
-
                   <span>
                     {tab === "demand"
                       ? "Buyer Demands"
-                      : "Verified Buyers"}
+                      : "Interested Buyers"}
                   </span>
                 </div>
 
@@ -370,10 +777,9 @@ export default function BuyerMarketPage({ user }) {
                 </h1>
 
                 <p className="text-sm text-gray-500 mt-1">
-                  Connect your crop lots with verified buyers,
-                  processors and institutional purchasers.
+                  Connect your crop lots with buyers who have
+                  submitted real purchase requests.
                 </p>
-
               </div>
 
               <button
@@ -384,74 +790,45 @@ export default function BuyerMarketPage({ user }) {
                 <Package size={17} />
                 View My Lots
               </button>
-
             </div>
-
           </section>
 
-
-          {/* SELLER TABS */}
-
           <div className="bg-white border border-gray-200 rounded-xl p-1.5 grid grid-cols-2 gap-1">
-
             <button
               type="button"
               onClick={() => changeTab("buyers")}
-              className={`
-                flex items-center justify-center gap-2
-                rounded-lg px-3 py-2.5
-                text-sm font-semibold
-                transition-colors
-                ${
-                  tab === "buyers"
-                    ? "bg-green-600 text-white"
-                    : "text-gray-600 hover:bg-gray-50"
-                }
-              `}
+              className={`flex items-center justify-center gap-2 rounded-lg px-3 py-2.5 text-sm font-semibold transition-colors ${
+                tab === "buyers"
+                  ? "bg-green-600 text-white"
+                  : "text-gray-600 hover:bg-gray-50"
+              }`}
             >
               <Handshake size={16} />
-              Verified Buyers
+              Interested Buyers
             </button>
 
             <button
               type="button"
               onClick={() => changeTab("demand")}
-              className={`
-                flex items-center justify-center gap-2
-                rounded-lg px-3 py-2.5
-                text-sm font-semibold
-                transition-colors
-                ${
-                  tab === "demand"
-                    ? "bg-green-600 text-white"
-                    : "text-gray-600 hover:bg-gray-50"
-                }
-              `}
+              className={`flex items-center justify-center gap-2 rounded-lg px-3 py-2.5 text-sm font-semibold transition-colors ${
+                tab === "demand"
+                  ? "bg-green-600 text-white"
+                  : "text-gray-600 hover:bg-gray-50"
+              }`}
             >
               <ClipboardList size={16} />
               Buyer Demands
             </button>
-
           </div>
 
-
-          {/* =====================================================
-              VERIFIED BUYERS
-          ===================================================== */}
-
           {tab === "buyers" && (
-
             <section className="space-y-4">
-
               <SearchBar
                 value={search}
                 onChange={setSearch}
               />
 
-              {/* BUYER TYPES */}
-
               <div className="flex gap-2 overflow-x-auto pb-1">
-
                 {[
                   {
                     id: "all",
@@ -470,301 +847,334 @@ export default function BuyerMarketPage({ user }) {
                     label: "Institutional",
                   },
                 ].map((type) => (
-
                   <button
                     key={type.id}
                     type="button"
-                    onClick={() => setTypeFilter(type.id)}
-                    className={`
-                      px-4 py-2 rounded-full
-                      text-sm font-semibold
-                      whitespace-nowrap
-                      transition-colors
-                      ${
-                        typeFilter === type.id
-                          ? "bg-green-600 text-white"
-                          : "bg-white text-gray-600 border border-gray-200 hover:border-green-300"
-                      }
-                    `}
+                    onClick={() =>
+                      setTypeFilter(type.id)
+                    }
+                    className={`px-4 py-2 rounded-full text-sm font-semibold whitespace-nowrap transition-colors ${
+                      typeFilter === type.id
+                        ? "bg-green-600 text-white"
+                        : "bg-white text-gray-600 border border-gray-200 hover:border-green-300"
+                    }`}
                   >
                     {type.label}
                   </button>
-
                 ))}
-
               </div>
 
-
-              {/* BUYER LIST */}
-
-              <div className="space-y-3">
-
-                {filteredBuyers.length > 0 ? (
-
-                  filteredBuyers.map((buyer) => (
-
-                    <BuyerCard
+              {sellerRequestsLoading ? (
+                <div className="bg-white border border-gray-200 rounded-xl p-10 text-center">
+                  <Clock3
+                    size={30}
+                    className="mx-auto text-gray-300 animate-pulse"
+                  />
+                  <p className="mt-3 text-sm font-semibold text-gray-700">
+                    Loading buyer requests...
+                  </p>
+                </div>
+              ) : sellerRequestsError ? (
+                <div className="bg-white border border-red-200 rounded-xl p-8 text-center">
+                  <Handshake
+                    size={30}
+                    className="mx-auto text-red-300"
+                  />
+                  <p className="mt-3 text-sm font-semibold text-red-700">
+                    Unable to load buyers
+                  </p>
+                  <p className="text-xs text-red-500 mt-1">
+                    {sellerRequestsError}
+                  </p>
+                </div>
+              ) : filteredBuyers.length > 0 ? (
+                <div className="space-y-3">
+                  {filteredBuyers.map((buyer) => (
+                    <div
                       key={buyer.id}
-                      buyer={buyer}
-                    />
+                      className="bg-white border border-gray-200 rounded-xl p-5"
+                    >
+                      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                        <div className="flex items-start gap-3">
+                          <div className="w-11 h-11 rounded-lg bg-green-50 flex items-center justify-center shrink-0">
+                            <Building2
+                              size={20}
+                              className="text-green-600"
+                            />
+                          </div>
 
-                  ))
+                          <div>
+                            <div className="flex flex-wrap items-center gap-2">
+                              <h3 className="font-bold text-gray-900">
+                                {buyer.name}
+                              </h3>
 
-                ) : (
+                              <span className="inline-flex items-center gap-1 rounded-full bg-green-50 px-2 py-1 text-[11px] font-semibold text-green-700">
+                                <CheckCircle2 size={11} />
+                                Active Request
+                              </span>
+                            </div>
 
-                  <div className="bg-white border border-gray-200 rounded-xl p-10 text-center">
+                            {buyer.location && (
+                              <p className="text-sm text-gray-500 mt-1 flex items-center gap-1">
+                                <MapPin size={13} />
+                                {buyer.location}
+                              </p>
+                            )}
+                          </div>
+                        </div>
 
-                    <Search
-                      size={28}
-                      className="mx-auto text-gray-300"
-                    />
+                        <div className="text-left sm:text-right">
+                          <p className="text-sm font-semibold text-gray-900">
+                            {buyer.requestCount}{" "}
+                            {buyer.requestCount === 1
+                              ? "request"
+                              : "requests"}
+                          </p>
 
-                    <p className="mt-3 text-sm font-semibold text-gray-700">
-                      No buyers found
-                    </p>
+                          <p className="text-xs text-gray-500 mt-1">
+                            Pending purchase interest
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="bg-white border border-gray-200 rounded-xl p-10 text-center">
+                  <Search
+                    size={28}
+                    className="mx-auto text-gray-300"
+                  />
 
-                    <p className="text-xs text-gray-500 mt-1">
-                      Try a different search or buyer type.
-                    </p>
+                  <p className="mt-3 text-sm font-semibold text-gray-700">
+                    No interested buyers found
+                  </p>
 
-                  </div>
-
-                )}
-
-              </div>
-
+                  <p className="text-xs text-gray-500 mt-1">
+                    Buyers will appear here after they submit
+                    purchase requests for your listed lots.
+                  </p>
+                </div>
+              )}
             </section>
-
           )}
 
-
-          {/* =====================================================
-              BUYER DEMANDS
-          ===================================================== */}
-
           {tab === "demand" && (
-
-            <section className="space-y-3">
-
+            <section className="space-y-4">
               <div className="bg-white border border-gray-200 rounded-xl px-5 py-4">
-
                 <h2 className="text-lg font-bold text-gray-900">
                   Buyer Demands
                 </h2>
 
                 <p className="text-sm text-gray-500 mt-1">
-                  Find procurement requirements that match your crop lots.
+                  View active procurement requirements submitted by buyers.
                 </p>
-
               </div>
 
+              {marketDemandsLoading ? (
+                <div className="bg-white border border-gray-200 rounded-xl p-10 text-center">
+                  <Clock3
+                    size={30}
+                    className="mx-auto text-gray-300 animate-pulse"
+                  />
 
-              {demandBoard.length > 0 ? (
+                  <p className="mt-3 text-sm font-semibold text-gray-700">
+                    Loading buyer demands...
+                  </p>
 
-                demandBoard.map((demand, index) => {
+                  <p className="text-xs text-gray-500 mt-1">
+                    Fetching active procurement requirements.
+                  </p>
+                </div>
+              ) : marketDemandsError ? (
+                <div className="bg-white border border-red-200 rounded-xl p-8 text-center">
+                  <ClipboardList
+                    size={30}
+                    className="mx-auto text-red-300"
+                  />
 
-                  const buyer = buyers.find(
-                    (item) =>
-                      item.id === demand.buyerId
-                  );
+                  <p className="mt-3 text-sm font-semibold text-red-700">
+                    Unable to load buyer demands
+                  </p>
 
-                  const commodity = commodities.find(
-                    (item) =>
-                      item.id === demand.commodityId
-                  );
-
-                  return (
-
+                  <p className="text-xs text-red-500 mt-1">
+                    {marketDemandsError}
+                  </p>
+                </div>
+              ) : marketDemands.length > 0 ? (
+                <div className="space-y-3">
+                  {marketDemands.map((demand) => (
                     <div
-                      key={index}
-                      className={`
-                        bg-white
-                        border
-                        rounded-xl
-                        p-5
-                        ${
-                          demand.status === "urgent"
-                            ? "border-red-200 bg-red-50/30"
-                            : "border-gray-200"
-                        }
-                      `}
+                      key={demand._id || demand.id}
+                      className="bg-white border border-gray-200 rounded-xl p-5"
                     >
+                      <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4">
+                        <div className="flex items-start gap-3">
+                          <div className="w-11 h-11 rounded-lg bg-green-50 flex items-center justify-center shrink-0">
+                            <ClipboardList
+                              size={20}
+                              className="text-green-600"
+                            />
+                          </div>
 
-                      <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-5">
+                          <div>
+                            <div className="flex flex-wrap items-center gap-2">
+                              <h3 className="font-bold text-gray-900">
+                                {getCommodityName(
+                                  demand.commodity,
+                                  t
+                                )}
+                              </h3>
 
-                        {/* LEFT */}
-
-                        <div className="min-w-0">
-
-                          <div className="flex items-center gap-3">
-
-                            <div className="w-10 h-10 rounded-lg bg-amber-50 flex items-center justify-center shrink-0">
-                              <Package
-                                size={18}
-                                className="text-amber-600"
-                              />
+                              <span
+                                className={`px-2 py-1 rounded-full text-[11px] font-semibold capitalize ${getStatusColor(
+                                  demand.status
+                                )}`}
+                              >
+                                {demand.status}
+                              </span>
                             </div>
 
-                            <div>
+                            <p className="text-sm text-gray-500 mt-1">
+                              Buyer:{" "}
+                              {demand.buyerId?.organizationName ||
+                                demand.buyerId?.name ||
+                                "Buyer"}
+                            </p>
 
-                              <div className="flex flex-wrap items-center gap-2">
+                            {(demand.buyerId?.district ||
+                              demand.buyerId?.state) && (
+                              <p className="text-xs text-gray-400 mt-1 flex items-center gap-1">
+                                <MapPin size={13} />
 
-                                <h3 className="font-bold text-gray-900">
-                                  {t(
-                                    demand.commodityId
-                                  )}
-                                </h3>
-
-                                <span
-                                  className={`
-                                    px-2 py-0.5
-                                    rounded-full
-                                    text-[11px]
-                                    font-semibold
-                                    capitalize
-                                    ${getStatusColor(
-                                      demand.status
-                                    )}
-                                  `}
-                                >
-                                  {demand.status}
-                                </span>
-
-                              </div>
-
-                              <p className="text-sm text-gray-500 mt-0.5">
-                                {buyer?.name || "Buyer"}
+                                {[
+                                  demand.buyerId?.district,
+                                  demand.buyerId?.state,
+                                ]
+                                  .filter(Boolean)
+                                  .join(", ")}
                               </p>
-
-                            </div>
-
+                            )}
                           </div>
-
-
-                          {/* DETAILS */}
-
-                          <div className="flex flex-wrap gap-x-5 gap-y-2 mt-4 text-xs text-gray-500">
-
-                            <span className="inline-flex items-center gap-1.5">
-                              <Package size={13} />
-                              {demand.quantity}
-                            </span>
-
-                            <span>
-                              Grade {demand.grade}
-                            </span>
-
-                            <span className="inline-flex items-center gap-1.5">
-                              <MapPin size={13} />
-                              {demand.deliveryLocation ||
-                                "Delivery location specified"}
-                            </span>
-
-                            <span className="inline-flex items-center gap-1.5">
-                              <CalendarDays size={13} />
-
-                              By{" "}
-
-                              {new Date(
-                                demand.deadline
-                              ).toLocaleDateString(
-                                "en-IN",
-                                {
-                                  day: "numeric",
-                                  month: "short",
-                                }
-                              )}
-
-                            </span>
-
-                          </div>
-
                         </div>
 
+                        <div className="text-left lg:text-right">
+                          <p className="text-lg font-bold text-green-700">
+                            {formatCurrency(
+                              demand.estimatedPrice
+                            )}
+                          </p>
 
-                        {/* RIGHT */}
-
-                        <div className="flex flex-col sm:flex-row sm:items-center gap-4 lg:justify-end">
-
-                          <div className="text-left sm:text-right">
-
-                            <p className="text-lg font-bold text-green-700">
-                              {formatCurrency(
-                                demand.priceOffered
-                              )}
-                            </p>
-
-                            <p className="text-xs text-gray-500">
-                              per quintal
-                            </p>
-
-                          </div>
-
-                          <button
-                            type="button"
-                            onClick={() =>
-                              navigate("/lots")
-                            }
-                            className="inline-flex items-center justify-center gap-2 bg-green-600 hover:bg-green-700 text-white rounded-lg px-4 py-2 text-sm font-semibold transition-colors"
-                          >
-                            <Package size={15} />
-                            Submit Lot
-                          </button>
-
+                          <p className="text-xs text-gray-500">
+                            per quintal
+                          </p>
                         </div>
-
                       </div>
 
+                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mt-5">
+                        <div>
+                          <p className="text-xs text-gray-400">
+                            Required Quantity
+                          </p>
+
+                          <p className="mt-1 text-sm font-semibold text-gray-900">
+                            {demand.quantity}{" "}
+                            {demand.unit || "quintal"}
+                          </p>
+                        </div>
+
+                        <div>
+                          <p className="text-xs text-gray-400">
+                            Grade / Quality
+                          </p>
+
+                          <p className="mt-1 text-sm font-semibold text-gray-900">
+                            {demand.grade}
+                          </p>
+                        </div>
+
+                        <div>
+                          <p className="text-xs text-gray-400">
+                            Delivery Location
+                          </p>
+
+                          <p className="mt-1 flex items-start gap-1 text-sm font-semibold text-gray-900">
+                            <MapPin
+                              size={14}
+                              className="mt-0.5 shrink-0 text-gray-400"
+                            />
+
+                            {demand.deliveryLocation}
+                          </p>
+                        </div>
+
+                        <div>
+                          <p className="text-xs text-gray-400">
+                            Required By
+                          </p>
+
+                          <p className="mt-1 flex items-center gap-1 text-sm font-semibold text-gray-900">
+                            <CalendarDays
+                              size={14}
+                              className="text-gray-400"
+                            />
+
+                            {formatDate(
+                              demand.deadline
+                            )}
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="mt-4 pt-4 border-t border-gray-100 flex flex-wrap items-center justify-between gap-3">
+                        <div className="flex items-center gap-2 text-xs text-gray-500">
+                          <Truck size={14} />
+
+                          <span>
+                            Transportation:{" "}
+                            <span className="font-semibold text-gray-700 capitalize">
+                              {demand.transportation}
+                            </span>
+                          </span>
+                        </div>
+
+                        <p className="text-xs text-gray-400">
+                          Posted{" "}
+                          {formatDate(
+                            demand.createdAt
+                          )}
+                        </p>
+                      </div>
                     </div>
-
-                  );
-
-                })
-
+                  ))}
+                </div>
               ) : (
-
                 <div className="bg-white border border-gray-200 rounded-xl p-10 text-center">
-
                   <ClipboardList
                     size={30}
                     className="mx-auto text-gray-300"
                   />
 
-                  <p className="mt-3 font-semibold text-gray-700">
-                    No buyer demands available
+                  <p className="mt-3 text-sm font-semibold text-gray-700">
+                    No active buyer demands
                   </p>
 
-                  <p className="mt-1 text-xs text-gray-500">
-                    New procurement requirements will appear here.
+                  <p className="text-xs text-gray-500 mt-1">
+                    Active procurement requirements from buyers will appear here.
                   </p>
-
                 </div>
-
               )}
-
             </section>
-
           )}
-
         </>
       )}
 
-
-      {/* =====================================================
-          BUYER VIEW
-      ===================================================== */}
-
       {isBuyer && (
         <>
-
-          {/* BUYER HEADER */}
-
           <section className="bg-white border border-gray-200 rounded-xl px-5 py-5">
-
             <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
-
               <div>
-
                 <div className="flex items-center gap-2 text-xs text-gray-500 mb-2">
                   <span>Procurement Marketplace</span>
                   <span className="text-gray-300">/</span>
@@ -783,14 +1193,12 @@ export default function BuyerMarketPage({ user }) {
                 </h1>
 
                 <p className="text-sm text-gray-500 mt-1">
-                  Find suitable farmer and FPO lots or post your procurement requirement.
+                  Find suitable farmer and FPO lots or post your
+                  procurement requirement.
                 </p>
-
               </div>
 
-
               {tab !== "post" && (
-
                 <button
                   type="button"
                   onClick={() => changeTab("post")}
@@ -799,158 +1207,128 @@ export default function BuyerMarketPage({ user }) {
                   <Plus size={17} />
                   Post New Demand
                 </button>
-
               )}
-
             </div>
-
           </section>
 
-
-          {/* BUYER TABS */}
-
           <div className="bg-white border border-gray-200 rounded-xl p-1.5 grid grid-cols-3 gap-1">
-
             <button
               type="button"
               onClick={() => changeTab("lots")}
-              className={`
-                flex items-center justify-center gap-2
-                rounded-lg px-3 py-2.5
-                text-sm font-semibold
-                transition-colors
-                ${
-                  tab === "lots"
-                    ? "bg-green-600 text-white"
-                    : "text-gray-600 hover:bg-gray-50"
-                }
-              `}
+              className={`flex items-center justify-center gap-2 rounded-lg px-3 py-2.5 text-sm font-semibold transition-colors ${
+                tab === "lots"
+                  ? "bg-green-600 text-white"
+                  : "text-gray-600 hover:bg-gray-50"
+              }`}
             >
               <Package size={16} />
               Available Lots
             </button>
 
-
             <button
               type="button"
               onClick={() => changeTab("demands")}
-              className={`
-                flex items-center justify-center gap-2
-                rounded-lg px-3 py-2.5
-                text-sm font-semibold
-                transition-colors
-                ${
-                  tab === "demands"
-                    ? "bg-green-600 text-white"
-                    : "text-gray-600 hover:bg-gray-50"
-                }
-              `}
+              className={`flex items-center justify-center gap-2 rounded-lg px-3 py-2.5 text-sm font-semibold transition-colors ${
+                tab === "demands"
+                  ? "bg-green-600 text-white"
+                  : "text-gray-600 hover:bg-gray-50"
+              }`}
             >
               <ClipboardList size={16} />
               My Demands
             </button>
 
-
             <button
               type="button"
               onClick={() => changeTab("post")}
-              className={`
-                flex items-center justify-center gap-2
-                rounded-lg px-3 py-2.5
-                text-sm font-semibold
-                transition-colors
-                ${
-                  tab === "post"
-                    ? "bg-green-600 text-white"
-                    : "text-gray-600 hover:bg-gray-50"
-                }
-              `}
+              className={`flex items-center justify-center gap-2 rounded-lg px-3 py-2.5 text-sm font-semibold transition-colors ${
+                tab === "post"
+                  ? "bg-green-600 text-white"
+                  : "text-gray-600 hover:bg-gray-50"
+              }`}
             >
               <Plus size={16} />
               Post Demand
             </button>
-
           </div>
 
-
-          {/* =====================================================
-              AVAILABLE LOTS
-          ===================================================== */}
-
           {tab === "lots" && (
-
             <section className="space-y-4">
-
               <SearchBar
                 value={lotSearch}
                 onChange={setLotSearch}
               />
 
-
-              {/* GRADE FILTER */}
-
               <div className="flex gap-2 overflow-x-auto pb-1">
+                <button
+                  type="button"
+                  onClick={() => setLotGrade("all")}
+                  className={`px-4 py-2 rounded-full text-sm font-semibold whitespace-nowrap transition-colors ${
+                    lotGrade === "all"
+                      ? "bg-green-600 text-white"
+                      : "bg-white text-gray-600 border border-gray-200 hover:border-green-300"
+                  }`}
+                >
+                  All Grades
+                </button>
 
-                {[
-                  {
-                    id: "all",
-                    label: "All Grades",
-                  },
-                  {
-                    id: "Grade A",
-                    label: "Grade A",
-                  },
-                  {
-                    id: "Premium",
-                    label: "Premium",
-                  },
-                ].map((grade) => (
-
+                {availableGrades.map((grade) => (
                   <button
-                    key={grade.id}
+                    key={grade}
                     type="button"
                     onClick={() =>
-                      setLotGrade(grade.id)
+                      setLotGrade(grade)
                     }
-                    className={`
-                      px-4 py-2 rounded-full
-                      text-sm font-semibold
-                      whitespace-nowrap
-                      transition-colors
-                      ${
-                        lotGrade === grade.id
-                          ? "bg-green-600 text-white"
-                          : "bg-white text-gray-600 border border-gray-200 hover:border-green-300"
-                      }
-                    `}
+                    className={`px-4 py-2 rounded-full text-sm font-semibold whitespace-nowrap transition-colors ${
+                      lotGrade === grade
+                        ? "bg-green-600 text-white"
+                        : "bg-white text-gray-600 border border-gray-200 hover:border-green-300"
+                    }`}
                   >
-                    {grade.label}
+                    {grade}
                   </button>
-
                 ))}
-
               </div>
 
+              {lotsLoading ? (
+                <div className="bg-white border border-gray-200 rounded-xl p-10 text-center">
+                  <Clock3
+                    size={30}
+                    className="mx-auto text-gray-300 animate-pulse"
+                  />
 
-              {/* LOT LIST */}
+                  <p className="mt-3 text-sm font-semibold text-gray-700">
+                    Loading available lots...
+                  </p>
 
-              <div className="space-y-3">
+                  <p className="text-xs text-gray-500 mt-1">
+                    Fetching currently listed farmer and FPO lots.
+                  </p>
+                </div>
+              ) : lotsError ? (
+                <div className="bg-white border border-red-200 rounded-xl p-8 text-center">
+                  <Package
+                    size={30}
+                    className="mx-auto text-red-300"
+                  />
 
-                {filteredLots.length > 0 ? (
+                  <p className="mt-3 text-sm font-semibold text-red-700">
+                    Unable to load available lots
+                  </p>
 
-                  filteredLots.map((lot) => (
-
+                  <p className="text-xs text-red-500 mt-1">
+                    {lotsError}
+                  </p>
+                </div>
+              ) : filteredLots.length > 0 ? (
+                <div className="space-y-3">
+                  {filteredLots.map((lot) => (
                     <div
                       key={lot.id}
                       className="bg-white border border-gray-200 rounded-xl overflow-hidden"
                     >
-
-                      {/* LOT HEADER */}
-
                       <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4 p-5 border-b border-gray-100">
-
                         <div className="flex items-start gap-3">
-
                           <div className="w-11 h-11 rounded-lg bg-green-50 flex items-center justify-center shrink-0">
                             <Package
                               size={20}
@@ -959,9 +1337,7 @@ export default function BuyerMarketPage({ user }) {
                           </div>
 
                           <div>
-
                             <div className="flex flex-wrap items-center gap-2">
-
                               <h3 className="font-bold text-gray-900">
                                 {getCommodityName(
                                   lot.crop,
@@ -970,61 +1346,44 @@ export default function BuyerMarketPage({ user }) {
                               </h3>
 
                               {lot.verified && (
-
                                 <span className="inline-flex items-center gap-1 rounded-full bg-green-50 px-2 py-1 text-[11px] font-semibold text-green-700">
                                   <CheckCircle2 size={11} />
                                   Verified Seller
                                 </span>
-
                               )}
-
                             </div>
 
                             <p className="text-xs text-gray-400 mt-1">
                               Lot ID: {lot.id}
                             </p>
-
                           </div>
-
                         </div>
 
-
-                        {/* PRICE */}
-
                         <div className="text-left lg:text-right">
-
                           <p className="text-lg font-bold text-green-700">
-                            {formatCurrency(lot.price)}
+                            {formatCurrency(
+                              lot.price
+                            )}
                           </p>
 
                           <p className="text-xs text-gray-500">
                             per quintal
                           </p>
-
                         </div>
-
                       </div>
 
-
-                      {/* LOT DETAILS */}
-
                       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 p-5">
-
                         <div>
-
                           <p className="text-xs text-gray-400">
                             Available Quantity
                           </p>
 
                           <p className="mt-1 text-sm font-semibold text-gray-900">
-                            {lot.quantity}
+                            {lot.quantity} quintals
                           </p>
-
                         </div>
 
-
                         <div>
-
                           <p className="text-xs text-gray-400">
                             Grade / Quality
                           </p>
@@ -1032,12 +1391,9 @@ export default function BuyerMarketPage({ user }) {
                           <p className="mt-1 text-sm font-semibold text-gray-900">
                             {lot.grade}
                           </p>
-
                         </div>
 
-
                         <div>
-
                           <p className="text-xs text-gray-400">
                             Pickup Location
                           </p>
@@ -1047,15 +1403,11 @@ export default function BuyerMarketPage({ user }) {
                               size={14}
                               className="mt-0.5 shrink-0 text-gray-400"
                             />
-
                             {lot.pickupLocation}
                           </p>
-
                         </div>
 
-
                         <div>
-
                           <p className="text-xs text-gray-400">
                             Available From
                           </p>
@@ -1065,32 +1417,22 @@ export default function BuyerMarketPage({ user }) {
                               size={14}
                               className="text-gray-400"
                             />
-
                             {formatDate(
                               lot.availableDate
                             )}
                           </p>
-
                         </div>
-
                       </div>
 
-
-                      {/* SELLER + TRANSPORT */}
-
                       <div className="mx-5 mb-5 rounded-lg border border-gray-200 bg-gray-50 p-4">
-
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-
                           <div className="flex items-center gap-3">
-
                             <Building2
                               size={18}
                               className="text-gray-500"
                             />
 
                             <div>
-
                               <p className="text-xs text-gray-400">
                                 Seller / FPO
                               </p>
@@ -1098,51 +1440,39 @@ export default function BuyerMarketPage({ user }) {
                               <p className="text-sm font-semibold text-gray-900">
                                 {lot.seller}
                               </p>
-
                             </div>
-
                           </div>
 
-
                           <div className="flex items-center gap-3">
-
                             <Truck
                               size={18}
                               className="text-gray-500"
                             />
 
                             <div>
-
                               <p className="text-xs text-gray-400">
                                 Transportation
                               </p>
 
                               <p className="text-sm font-semibold text-gray-900">
-                                {lot.transportation === "buyer"
+                                {lot.transportation ===
+                                "buyer"
                                   ? "Buyer will arrange"
-                                  : "Seller will arrange"}
+                                  : lot.transportation ===
+                                      "seller"
+                                    ? "Seller will arrange"
+                                    : lot.transportation}
                               </p>
-
                             </div>
-
                           </div>
-
                         </div>
-
                       </div>
 
-
-                      {/* ACTIONS */}
-
                       <div className="flex flex-wrap justify-end gap-2 border-t border-gray-100 bg-gray-50 px-5 py-3">
-
                         <button
                           type="button"
                           onClick={() =>
-                            console.log(
-                              "View Lot:",
-                              lot
-                            )
+                            setSelectedLot(lot)
                           }
                           className="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-4 py-2 text-xs font-semibold text-gray-700 hover:bg-gray-50"
                         >
@@ -1153,61 +1483,42 @@ export default function BuyerMarketPage({ user }) {
                         <button
                           type="button"
                           onClick={() =>
-                            console.log(
-                              "Request to Buy:",
-                              lot
-                            )
+                            openRequestModal(lot)
                           }
-                          className="inline-flex items-center gap-1.5 rounded-lg bg-green-600 px-4 py-2 text-xs font-semibold text-white hover:bg-green-700"
+                          disabled={
+                            lot.quantity <= 0
+                          }
+                          className="inline-flex items-center gap-1.5 rounded-lg bg-green-600 px-4 py-2 text-xs font-semibold text-white hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-50"
                         >
                           <ShoppingCart size={14} />
                           Request to Buy
                         </button>
-
                       </div>
-
                     </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="bg-white border border-gray-200 rounded-xl p-10 text-center">
+                  <Search
+                    size={30}
+                    className="mx-auto text-gray-300"
+                  />
 
-                  ))
+                  <p className="mt-3 text-sm font-semibold text-gray-700">
+                    No lots found
+                  </p>
 
-                ) : (
-
-                  <div className="bg-white border border-gray-200 rounded-xl p-10 text-center">
-
-                    <Search
-                      size={30}
-                      className="mx-auto text-gray-300"
-                    />
-
-                    <p className="mt-3 text-sm font-semibold text-gray-700">
-                      No lots found
-                    </p>
-
-                    <p className="text-xs text-gray-500 mt-1">
-                      Try another crop, location or grade.
-                    </p>
-
-                  </div>
-
-                )}
-
-              </div>
-
+                  <p className="text-xs text-gray-500 mt-1">
+                    Try another crop, location or grade.
+                  </p>
+                </div>
+              )}
             </section>
-
           )}
 
-
-          {/* =====================================================
-              MY DEMANDS
-          ===================================================== */}
-
           {tab === "demands" && (
-
             <section className="space-y-4">
-
               <div className="bg-white border border-gray-200 rounded-xl px-5 py-4">
-
                 <h2 className="text-lg font-bold text-gray-900">
                   My Procurement Demands
                 </h2>
@@ -1215,115 +1526,185 @@ export default function BuyerMarketPage({ user }) {
                 <p className="text-sm text-gray-500 mt-1">
                   Track procurement requirements posted by your business.
                 </p>
-
               </div>
 
-
-              {submitted ? (
-
-                <div className="bg-white border border-gray-200 rounded-xl p-8">
-
-                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-
-                    <div className="flex items-start gap-3">
-
-                      <div className="w-10 h-10 rounded-lg bg-green-50 flex items-center justify-center shrink-0">
-
-                        <CheckCircle2
-                          size={20}
-                          className="text-green-600"
-                        />
-
-                      </div>
-
-                      <div>
-
-                        <h3 className="font-bold text-gray-900">
-                          {getCommodityName(
-                            formData.crop,
-                            t
-                          )} Procurement
-                        </h3>
-
-                        <p className="text-sm text-gray-500 mt-1">
-                          {formData.quantity} Quintals ·{" "}
-                          {formData.grade}
-                        </p>
-
-                      </div>
-
-                    </div>
-
-
-                    <span className="inline-flex items-center gap-1.5 rounded-full bg-green-50 px-3 py-1.5 text-xs font-semibold text-green-700">
-                      <Clock3 size={13} />
-                      Matching Active
-                    </span>
-
-                  </div>
-
-
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-5 pt-5 border-t border-gray-100">
-
-                    <div>
-
-                      <p className="text-xs text-gray-400">
-                        Expected Price
-                      </p>
-
-                      <p className="mt-1 text-sm font-semibold">
-                        ₹{formData.estimatedPrice} / quintal
-                      </p>
-
-                    </div>
-
-                    <div>
-
-                      <p className="text-xs text-gray-400">
-                        Delivery Location
-                      </p>
-
-                      <p className="mt-1 text-sm font-semibold">
-                        {formData.deliveryLocation}
-                      </p>
-
-                    </div>
-
-                    <div>
-
-                      <p className="text-xs text-gray-400">
-                        Required By
-                      </p>
-
-                      <p className="mt-1 text-sm font-semibold">
-                        {formatDate(formData.deadline)}
-                      </p>
-
-                    </div>
-
-                  </div>
-
-
-                  <div className="flex justify-end mt-5">
-
-                    <button
-                      type="button"
-                      onClick={() =>
-                        changeTab("post")
-                      }
-                      className="text-sm font-semibold text-green-700 hover:text-green-800"
-                    >
-                      Post another demand
-                    </button>
-
-                  </div>
-
-                </div>
-
-              ) : (
-
+              {demandLoading ? (
                 <div className="bg-white border border-gray-200 rounded-xl p-10 text-center">
+                  <Clock3
+                    size={30}
+                    className="mx-auto text-gray-300 animate-pulse"
+                  />
 
+                  <p className="mt-3 text-sm font-semibold text-gray-700">
+                    Loading your demands...
+                  </p>
+                </div>
+              ) : demandError ? (
+                <div className="bg-white border border-red-200 rounded-xl p-8 text-center">
+                  <ClipboardList
+                    size={30}
+                    className="mx-auto text-red-300"
+                  />
+
+                  <p className="mt-3 text-sm font-semibold text-red-700">
+                    Unable to load your demands
+                  </p>
+
+                  <p className="text-xs text-red-500 mt-1">
+                    {demandError}
+                  </p>
+                </div>
+              ) : myDemands.length > 0 ? (
+                <div className="space-y-3">
+                  {myDemands.map((demand) => (
+                    <div
+                      key={
+                        demand._id ||
+                        demand.id
+                      }
+                      className="bg-white border border-gray-200 rounded-xl p-5"
+                    >
+                      <div className="flex items-start gap-3">
+                        <div className="w-10 h-10 rounded-lg bg-green-50 flex items-center justify-center shrink-0">
+                          <Package
+                            size={18}
+                            className="text-green-600"
+                          />
+                        </div>
+
+                        <div className="min-w-0 flex-1">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <h3 className="font-bold text-gray-900">
+                              {getCommodityName(
+                                demand.commodity,
+                                t
+                              )}
+                            </h3>
+
+                            <span
+                              className={`px-2 py-0.5 rounded-full text-[11px] font-semibold capitalize ${getStatusColor(
+                                demand.status ||
+                                  "active"
+                              )}`}
+                            >
+                              {demand.status ||
+                                "active"}
+                            </span>
+                          </div>
+
+                          <p className="text-xs text-gray-400 mt-1">
+                            Posted{" "}
+                            {formatDate(
+                              demand.createdAt
+                            )}
+                          </p>
+
+                          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mt-5">
+                            <div>
+                              <p className="text-xs text-gray-400">
+                                Required Quantity
+                              </p>
+
+                              <p className="mt-1 text-sm font-semibold text-gray-900">
+                                {demand.quantity}{" "}
+                                {demand.unit ||
+                                  "quintal"}
+                              </p>
+                            </div>
+
+                            <div>
+                              <p className="text-xs text-gray-400">
+                                Grade / Quality
+                              </p>
+
+                              <p className="mt-1 text-sm font-semibold text-gray-900">
+                                {demand.grade ||
+                                  "Any"}
+                              </p>
+                            </div>
+
+                            <div>
+                              <p className="text-xs text-gray-400">
+                                Estimated Price
+                              </p>
+
+                              <p className="mt-1 text-sm font-semibold text-gray-900">
+                                {demand.estimatedPrice !=
+                                null
+                                  ? formatCurrency(
+                                      demand.estimatedPrice
+                                    )
+                                  : "Not specified"}
+                                {demand.estimatedPrice !=
+                                  null && (
+                                  <span className="text-xs font-normal text-gray-500">
+                                    {" "}
+                                    / quintal
+                                  </span>
+                                )}
+                              </p>
+                            </div>
+
+                            <div>
+                              <p className="text-xs text-gray-400">
+                                Delivery Location
+                              </p>
+
+                              <p className="mt-1 flex items-start gap-1 text-sm font-semibold text-gray-900">
+                                <MapPin
+                                  size={14}
+                                  className="mt-0.5 shrink-0 text-gray-400"
+                                />
+                                {demand.deliveryLocation ||
+                                  "Not specified"}
+                              </p>
+                            </div>
+
+                            <div>
+                              <p className="text-xs text-gray-400">
+                                Required By
+                              </p>
+
+                              <p className="mt-1 flex items-center gap-1 text-sm font-semibold text-gray-900">
+                                <CalendarDays
+                                  size={14}
+                                  className="text-gray-400"
+                                />
+                                {formatDate(
+                                  demand.deadline
+                                )}
+                              </p>
+                            </div>
+
+                            <div>
+                              <p className="text-xs text-gray-400">
+                                Transportation
+                              </p>
+
+                              <p className="mt-1 flex items-center gap-1 text-sm font-semibold text-gray-900">
+                                <Truck
+                                  size={14}
+                                  className="text-gray-400"
+                                />
+
+                                {demand.transportation ===
+                                "buyer"
+                                  ? "Buyer will arrange"
+                                  : demand.transportation ===
+                                      "seller"
+                                    ? "Seller will arrange"
+                                    : demand.transportation ||
+                                      "Not specified"}
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="bg-white border border-gray-200 rounded-xl p-10 text-center">
                   <ClipboardList
                     size={30}
                     className="mx-auto text-gray-300"
@@ -1334,7 +1715,8 @@ export default function BuyerMarketPage({ user }) {
                   </p>
 
                   <p className="text-xs text-gray-500 mt-1">
-                    Create a demand to start matching with farmer and FPO lots.
+                    Create a demand to start matching with farmer
+                    and FPO lots.
                   </p>
 
                   <button
@@ -1347,577 +1729,670 @@ export default function BuyerMarketPage({ user }) {
                     <Plus size={16} />
                     Post Demand
                   </button>
-
                 </div>
-
               )}
-
             </section>
-
           )}
 
-        </>
-      )}
-
-
-      {/* =====================================================
-          POST DEMAND
-      ===================================================== */}
-
-      {isBuyer && tab === "post" && (
-
-        <section className="bg-white border border-gray-200 rounded-xl overflow-hidden">
-
-          {/* FORM HEADER */}
-
-          <div className="px-5 sm:px-7 py-5 border-b border-gray-100">
-
-            <div className="flex items-start gap-3">
-
-              <div className="w-10 h-10 rounded-lg bg-green-50 flex items-center justify-center shrink-0">
-
-                <ClipboardList
-                  size={19}
-                  className="text-green-600"
-                />
-
-              </div>
-
-              <div>
-
-                <h2 className="text-lg font-bold text-gray-900">
-                  Post a Procurement Demand
-                </h2>
-
-                <p className="text-sm text-gray-500 mt-1">
-                  Tell farmers and FPOs what produce you need.
-                </p>
-
-              </div>
-
-            </div>
-
-          </div>
-
-
-          {/* SUCCESS */}
-
-          {submitted ? (
-
-            <div className="px-5 sm:px-7 py-12 text-center">
-
-              <div className="w-14 h-14 rounded-full bg-green-50 flex items-center justify-center mx-auto">
-
-                <CheckCircle2
-                  size={28}
-                  className="text-green-600"
-                />
-
-              </div>
-
-              <h3 className="mt-4 text-xl font-bold text-gray-900">
-                Demand Posted Successfully
-              </h3>
-
-              <p className="mt-2 text-sm text-gray-500 max-w-md mx-auto">
-                Your procurement requirement has been created and can now
-                be matched with suitable farmer and FPO lots.
-              </p>
-
-
-              <div className="flex flex-col sm:flex-row justify-center gap-3 mt-6">
-
-                <button
-                  type="button"
-                  onClick={resetForm}
-                  className="px-4 py-2.5 rounded-lg border border-gray-200 text-sm font-semibold text-gray-700 hover:bg-gray-50"
-                >
-                  Post Another Demand
-                </button>
-
-
-                <button
-                  type="button"
-                  onClick={() =>
-                    changeTab("demands")
-                  }
-                  className="px-4 py-2.5 rounded-lg bg-green-600 hover:bg-green-700 text-white text-sm font-semibold"
-                >
-                  View My Demands
-                </button>
-
-              </div>
-
-            </div>
-
-          ) : (
-
-            <form
-              onSubmit={handleSubmit}
-              className="p-5 sm:p-7 space-y-7"
-            >
-
-              {/* PRODUCE */}
-
-              <div>
-
-                <h3 className="text-sm font-bold text-gray-900">
-                  Produce Requirements
-                </h3>
-
-                <p className="text-xs text-gray-500 mt-1">
-                  Specify the crop and quantity you want to procure.
-                </p>
-
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mt-5">
-
-                  {/* CROP */}
-
-                  <div>
-
-                    <label className="block text-sm font-semibold text-gray-700 mb-2">
-                      Crop
-                    </label>
-
-                    <select
-                      name="crop"
-                      value={formData.crop}
-                      onChange={handleChange}
-                      className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm text-gray-700 outline-none focus:border-green-500 focus:ring-2 focus:ring-green-100"
-                      required
-                    >
-
-                      <option value="">
-                        Select crop
-                      </option>
-
-                      {commodities.map(
-                        (commodity) => (
-
-                          <option
-                            key={commodity.id}
-                            value={commodity.id}
-                          >
-                            {t(commodity.id)}
-                          </option>
-
-                        )
-                      )}
-
-                    </select>
-
-                  </div>
-
-
-                  {/* QUANTITY */}
-
-                  <div>
-
-                    <label className="block text-sm font-semibold text-gray-700 mb-2">
-                      Required Quantity
-                    </label>
-
-                    <div className="relative">
-
-                      <input
-                        type="number"
-                        name="quantity"
-                        value={formData.quantity}
-                        onChange={handleChange}
-                        min="1"
-                        placeholder="e.g. 500"
-                        className="w-full rounded-lg border border-gray-300 px-3 py-2.5 pr-20 text-sm outline-none focus:border-green-500 focus:ring-2 focus:ring-green-100"
-                        required
-                      />
-
-                      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-gray-400">
-                        Quintals
-                      </span>
-
-                    </div>
-
-                  </div>
-
-
-                  {/* GRADE */}
-
-                  <div>
-
-                    <label className="block text-sm font-semibold text-gray-700 mb-2">
-                      Grade / Quality
-                    </label>
-
-                    <select
-                      name="grade"
-                      value={formData.grade}
-                      onChange={handleChange}
-                      className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm text-gray-700 outline-none focus:border-green-500 focus:ring-2 focus:ring-green-100"
-                      required
-                    >
-
-                      <option value="">
-                        Select required quality
-                      </option>
-
-                      <option value="Grade A">
-                        Grade A
-                      </option>
-
-                      <option value="Grade B">
-                        Grade B
-                      </option>
-
-                      <option value="Premium">
-                        Premium
-                      </option>
-
-                    </select>
-
-                  </div>
-
-
-                  {/* PRICE */}
-
-                  <div>
-
-                    <label className="block text-sm font-semibold text-gray-700 mb-2">
-                      Estimated Price
-                    </label>
-
-                    <div className="relative">
-
-                      <IndianRupee
-                        size={15}
-                        className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
-                      />
-
-                      <input
-                        type="number"
-                        name="estimatedPrice"
-                        value={formData.estimatedPrice}
-                        onChange={handleChange}
-                        min="1"
-                        placeholder="e.g. 2500"
-                        className="w-full rounded-lg border border-gray-300 pl-9 pr-20 py-2.5 text-sm outline-none focus:border-green-500 focus:ring-2 focus:ring-green-100"
-                        required
-                      />
-
-                      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-gray-400">
-                        / quintal
-                      </span>
-
-                    </div>
-
-                    <p className="text-xs text-gray-400 mt-1.5">
-                      Your expected / maximum procurement price per quintal.
-                    </p>
-
-                  </div>
-
-                </div>
-
-              </div>
-
-
-              {/* DELIVERY */}
-
-              <div className="pt-6 border-t border-gray-100">
-
-                <h3 className="text-sm font-bold text-gray-900">
-                  Delivery Requirements
-                </h3>
-
-                <p className="text-xs text-gray-500 mt-1">
-                  Tell sellers where and when the produce is required.
-                </p>
-
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mt-5">
-
-                  {/* LOCATION */}
-
-                  <div>
-
-                    <label className="block text-sm font-semibold text-gray-700 mb-2">
-                      Delivery Location
-                    </label>
-
-                    <div className="relative">
-
-                      <MapPin
-                        size={16}
-                        className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
-                      />
-
-                      <input
-                        type="text"
-                        name="deliveryLocation"
-                        value={formData.deliveryLocation}
-                        onChange={handleChange}
-                        placeholder="e.g. Ahmedabad, Gujarat"
-                        className="w-full rounded-lg border border-gray-300 pl-9 pr-3 py-2.5 text-sm outline-none focus:border-green-500 focus:ring-2 focus:ring-green-100"
-                        required
-                      />
-
-                    </div>
-
-                  </div>
-
-
-                  {/* DEADLINE */}
-
-                  <div>
-
-                    <label className="block text-sm font-semibold text-gray-700 mb-2">
-                      Required By
-                    </label>
-
-                    <div className="relative">
-
-                      <CalendarDays
-                        size={16}
-                        className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
-                      />
-
-                      <input
-                        type="date"
-                        name="deadline"
-                        value={formData.deadline}
-                        onChange={handleChange}
-                        className="w-full rounded-lg border border-gray-300 pl-9 pr-3 py-2.5 text-sm text-gray-700 outline-none focus:border-green-500 focus:ring-2 focus:ring-green-100"
-                        required
-                      />
-
-                    </div>
-
-                  </div>
-
-                </div>
-
-              </div>
-
-
-              {/* TRANSPORTATION */}
-
-              <div className="pt-6 border-t border-gray-100">
-
+          {tab === "post" && (
+            <section className="bg-white border border-gray-200 rounded-xl overflow-hidden">
+              <div className="px-5 sm:px-7 py-5 border-b border-gray-100">
                 <div className="flex items-start gap-3">
-
-                  <div className="w-9 h-9 rounded-lg bg-amber-50 flex items-center justify-center shrink-0">
-
-                    <Truck
-                      size={17}
-                      className="text-amber-600"
+                  <div className="w-10 h-10 rounded-lg bg-green-50 flex items-center justify-center shrink-0">
+                    <ClipboardList
+                      size={19}
+                      className="text-green-600"
                     />
-
                   </div>
 
                   <div>
+                    <h2 className="text-lg font-bold text-gray-900">
+                      Post a Procurement Demand
+                    </h2>
 
+                    <p className="text-sm text-gray-500 mt-1">
+                      Tell farmers and FPOs what produce you need.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {submitted ? (
+                <div className="px-5 sm:px-7 py-12 text-center">
+                  <div className="w-14 h-14 rounded-full bg-green-50 flex items-center justify-center mx-auto">
+                    <CheckCircle2
+                      size={28}
+                      className="text-green-600"
+                    />
+                  </div>
+
+                  <h3 className="mt-4 text-xl font-bold text-gray-900">
+                    Demand Posted Successfully
+                  </h3>
+
+                  <p className="mt-2 text-sm text-gray-500 max-w-md mx-auto">
+                    Your procurement requirement has been created
+                    and can now be matched with suitable farmer and
+                    FPO lots.
+                  </p>
+
+                  <div className="flex flex-col sm:flex-row justify-center gap-3 mt-6">
+                    <button
+                      type="button"
+                      onClick={resetForm}
+                      className="px-4 py-2.5 rounded-lg border border-gray-200 text-sm font-semibold text-gray-700 hover:bg-gray-50"
+                    >
+                      Post Another Demand
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() =>
+                        changeTab("demands")
+                      }
+                      className="px-4 py-2.5 rounded-lg bg-green-600 hover:bg-green-700 text-white text-sm font-semibold"
+                    >
+                      View My Demands
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <form
+                  onSubmit={handleSubmit}
+                  className="p-5 sm:p-7 space-y-7"
+                >
+                  {demandError && (
+                    <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3">
+                      <p className="text-sm font-medium text-red-700">
+                        {demandError}
+                      </p>
+                    </div>
+                  )}
+
+                  <div>
                     <h3 className="text-sm font-bold text-gray-900">
-                      Transportation
+                      Produce Requirements
                     </h3>
 
                     <p className="text-xs text-gray-500 mt-1">
-                      Who will arrange transportation for this demand?
+                      Specify the crop and quantity you want to procure.
                     </p>
 
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mt-5">
+                      <div>
+                        <label className="block text-sm font-semibold text-gray-700 mb-2">
+                          Crop
+                        </label>
+
+                        <input
+                          type="text"
+                          name="crop"
+                          value={formData.crop}
+                          onChange={handleChange}
+                          placeholder="e.g. wheat"
+                          className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm text-gray-700 outline-none focus:border-green-500 focus:ring-2 focus:ring-green-100"
+                          required
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-semibold text-gray-700 mb-2">
+                          Required Quantity
+                        </label>
+
+                        <div className="relative">
+                          <input
+                            type="number"
+                            name="quantity"
+                            value={formData.quantity}
+                            onChange={handleChange}
+                            min="1"
+                            placeholder="e.g. 500"
+                            className="w-full rounded-lg border border-gray-300 px-3 py-2.5 pr-20 text-sm outline-none focus:border-green-500 focus:ring-2 focus:ring-green-100"
+                            required
+                          />
+
+                          <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-gray-400">
+                            Quintals
+                          </span>
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-semibold text-gray-700 mb-2">
+                          Grade / Quality
+                        </label>
+
+                        <select
+                          name="grade"
+                          value={formData.grade}
+                          onChange={handleChange}
+                          className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm text-gray-700 outline-none focus:border-green-500 focus:ring-2 focus:ring-green-100"
+                          required
+                        >
+                          <option value="">
+                            Select required quality
+                          </option>
+
+                          <option value="Grade A">
+                            Grade A
+                          </option>
+
+                          <option value="Grade B">
+                            Grade B
+                          </option>
+
+                          <option value="Premium">
+                            Premium
+                          </option>
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-semibold text-gray-700 mb-2">
+                          Estimated Price
+                        </label>
+
+                        <div className="relative">
+                          <IndianRupee
+                            size={15}
+                            className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
+                          />
+
+                          <input
+                            type="number"
+                            name="estimatedPrice"
+                            value={
+                              formData.estimatedPrice
+                            }
+                            onChange={handleChange}
+                            min="0"
+                            placeholder="e.g. 2500"
+                            className="w-full rounded-lg border border-gray-300 pl-9 pr-20 py-2.5 text-sm outline-none focus:border-green-500 focus:ring-2 focus:ring-green-100"
+                            required
+                          />
+
+                          <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-gray-400">
+                            / quintal
+                          </span>
+                        </div>
+
+                        <p className="text-xs text-gray-400 mt-1.5">
+                          Your expected / maximum procurement price per quintal.
+                        </p>
+                      </div>
+                    </div>
                   </div>
 
-                </div>
+                  <div className="pt-6 border-t border-gray-100">
+                    <h3 className="text-sm font-bold text-gray-900">
+                      Delivery Requirements
+                    </h3>
 
+                    <p className="text-xs text-gray-500 mt-1">
+                      Tell sellers where and when the produce is required.
+                    </p>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mt-5">
+                      <div>
+                        <label className="block text-sm font-semibold text-gray-700 mb-2">
+                          Delivery Location
+                        </label>
 
-                  {/* BUYER */}
+                        <div className="relative">
+                          <MapPin
+                            size={16}
+                            className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
+                          />
 
-                  <label
-                    className={`
-                      relative flex items-start gap-3
-                      p-4 rounded-xl border cursor-pointer
-                      transition-all
-                      ${
-                        formData.transportation === "buyer"
-                          ? "border-green-500 bg-green-50 ring-1 ring-green-500"
-                          : "border-gray-200 hover:border-gray-300"
-                      }
-                    `}
-                  >
+                          <input
+                            type="text"
+                            name="deliveryLocation"
+                            value={
+                              formData.deliveryLocation
+                            }
+                            onChange={handleChange}
+                            placeholder="e.g. Ahmedabad, Gujarat"
+                            className="w-full rounded-lg border border-gray-300 pl-9 pr-3 py-2.5 text-sm outline-none focus:border-green-500 focus:ring-2 focus:ring-green-100"
+                            required
+                          />
+                        </div>
+                      </div>
 
-                    <input
-                      type="radio"
-                      name="transportation"
-                      value="buyer"
-                      checked={
-                        formData.transportation === "buyer"
-                      }
-                      onChange={handleChange}
-                      className="sr-only"
-                    />
+                      <div>
+                        <label className="block text-sm font-semibold text-gray-700 mb-2">
+                          Required By
+                        </label>
 
-                    <div
-                      className={`
-                        w-5 h-5 rounded-full border-2
-                        flex items-center justify-center
-                        shrink-0 mt-0.5
-                        ${
-                          formData.transportation === "buyer"
-                            ? "border-green-600"
-                            : "border-gray-300"
-                        }
-                      `}
-                    >
+                        <div className="relative">
+                          <CalendarDays
+                            size={16}
+                            className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
+                          />
 
-                      {formData.transportation === "buyer" && (
-                        <div className="w-2.5 h-2.5 rounded-full bg-green-600" />
-                      )}
-
+                          <input
+                            type="date"
+                            name="deadline"
+                            value={
+                              formData.deadline
+                            }
+                            onChange={handleChange}
+                            className="w-full rounded-lg border border-gray-300 pl-9 pr-3 py-2.5 text-sm text-gray-700 outline-none focus:border-green-500 focus:ring-2 focus:ring-green-100"
+                            required
+                          />
+                        </div>
+                      </div>
                     </div>
-
-                    <div>
-
-                      <p className="text-sm font-semibold text-gray-900">
-                        Buyer will arrange
-                      </p>
-
-                      <p className="text-xs text-gray-500 mt-1">
-                        I will arrange the transporter after the order is confirmed.
-                      </p>
-
-                    </div>
-
-                  </label>
-
-
-                  {/* SELLER */}
-
-                  <label
-                    className={`
-                      relative flex items-start gap-3
-                      p-4 rounded-xl border cursor-pointer
-                      transition-all
-                      ${
-                        formData.transportation === "seller"
-                          ? "border-green-500 bg-green-50 ring-1 ring-green-500"
-                          : "border-gray-200 hover:border-gray-300"
-                      }
-                    `}
-                  >
-
-                    <input
-                      type="radio"
-                      name="transportation"
-                      value="seller"
-                      checked={
-                        formData.transportation === "seller"
-                      }
-                      onChange={handleChange}
-                      className="sr-only"
-                    />
-
-                    <div
-                      className={`
-                        w-5 h-5 rounded-full border-2
-                        flex items-center justify-center
-                        shrink-0 mt-0.5
-                        ${
-                          formData.transportation === "seller"
-                            ? "border-green-600"
-                            : "border-gray-300"
-                        }
-                      `}
-                    >
-
-                      {formData.transportation === "seller" && (
-                        <div className="w-2.5 h-2.5 rounded-full bg-green-600" />
-                      )}
-
-                    </div>
-
-                    <div>
-
-                      <p className="text-sm font-semibold text-gray-900">
-                        Seller will arrange
-                      </p>
-
-                      <p className="text-xs text-gray-500 mt-1">
-                        Seller will arrange delivery to the specified location.
-                      </p>
-
-                    </div>
-
-                  </label>
-
-                </div>
-
-              </div>
-
-
-              {/* MATCHING INFO */}
-
-              <div className="pt-6 border-t border-gray-100">
-
-                <div className="bg-gray-50 border border-gray-200 rounded-xl p-4">
-
-                  <div className="flex items-start gap-3">
-
-                    <CheckCircle2
-                      size={17}
-                      className="text-green-600 mt-0.5 shrink-0"
-                    />
-
-                    <div>
-
-                      <p className="text-sm font-semibold text-gray-900">
-                        Procurement matching
-                      </p>
-
-                      <p className="text-xs text-gray-500 mt-1 leading-relaxed">
-                        After posting, Bharat Fasal can match your requirement
-                        with suitable farmer and FPO lots based on crop,
-                        quantity, quality, price and delivery requirements.
-                      </p>
-
-                    </div>
-
                   </div>
 
-                </div>
+                  <div className="pt-6 border-t border-gray-100">
+                    <div className="flex items-start gap-3">
+                      <div className="w-9 h-9 rounded-lg bg-amber-50 flex items-center justify-center shrink-0">
+                        <Truck
+                          size={17}
+                          className="text-amber-600"
+                        />
+                      </div>
 
+                      <div>
+                        <h3 className="text-sm font-bold text-gray-900">
+                          Transportation
+                        </h3>
+
+                        <p className="text-xs text-gray-500 mt-1">
+                          Who will arrange transportation for this demand?
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-4">
+                      {[
+                        {
+                          value: "buyer",
+                          title: "Buyer will arrange",
+                          description:
+                            "I will arrange the transporter after the order is confirmed.",
+                        },
+                        {
+                          value: "seller",
+                          title: "Seller will arrange",
+                          description:
+                            "Seller will arrange delivery to the specified location.",
+                        },
+                      ].map((option) => (
+                        <label
+                          key={option.value}
+                          className={`relative flex items-start gap-3 p-4 rounded-xl border cursor-pointer transition-all ${
+                            formData.transportation ===
+                            option.value
+                              ? "border-green-500 bg-green-50 ring-1 ring-green-500"
+                              : "border-gray-200 hover:border-gray-300"
+                          }`}
+                        >
+                          <input
+                            type="radio"
+                            name="transportation"
+                            value={option.value}
+                            checked={
+                              formData.transportation ===
+                              option.value
+                            }
+                            onChange={handleChange}
+                            className="sr-only"
+                          />
+
+                          <div
+                            className={`w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 mt-0.5 ${
+                              formData.transportation ===
+                              option.value
+                                ? "border-green-600"
+                                : "border-gray-300"
+                            }`}
+                          >
+                            {formData.transportation ===
+                              option.value && (
+                              <div className="w-2.5 h-2.5 rounded-full bg-green-600" />
+                            )}
+                          </div>
+
+                          <div>
+                            <p className="text-sm font-semibold text-gray-900">
+                              {option.title}
+                            </p>
+
+                            <p className="text-xs text-gray-500 mt-1">
+                              {option.description}
+                            </p>
+                          </div>
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="pt-6 border-t border-gray-100">
+                    <div className="bg-gray-50 border border-gray-200 rounded-xl p-4">
+                      <div className="flex items-start gap-3">
+                        <CheckCircle2
+                          size={17}
+                          className="text-green-600 mt-0.5 shrink-0"
+                        />
+
+                        <div>
+                          <p className="text-sm font-semibold text-gray-900">
+                            Procurement matching
+                          </p>
+
+                          <p className="text-xs text-gray-500 mt-1 leading-relaxed">
+                            After posting, Bharat Fasal can match your
+                            requirement with suitable farmer and FPO lots
+                            based on crop, quantity, quality, price and
+                            delivery requirements.
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-3 pt-2">
+                    <button
+                      type="button"
+                      onClick={() =>
+                        changeTab("lots")
+                      }
+                      className="px-5 py-2.5 rounded-lg border border-gray-200 text-sm font-semibold text-gray-700 hover:bg-gray-50 transition-colors"
+                    >
+                      Cancel
+                    </button>
+
+                    <button
+                      type="submit"
+                      disabled={demandLoading}
+                      className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-lg bg-green-600 hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-60 text-white text-sm font-semibold transition-colors"
+                    >
+                      <Send size={16} />
+                      {demandLoading
+                        ? "Posting..."
+                        : "Post Demand"}
+                    </button>
+                  </div>
+                </form>
+              )}
+            </section>
+          )}
+        </>
+      )}
+
+      {selectedLot && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="w-full max-w-2xl max-h-[90vh] overflow-y-auto bg-white rounded-2xl shadow-xl">
+            <div className="flex items-start justify-between gap-4 px-5 py-4 border-b border-gray-100">
+              <div>
+                <h2 className="text-lg font-bold text-gray-900">
+                  Lot Details
+                </h2>
+
+                <p className="text-xs text-gray-500 mt-1">
+                  Lot ID: {selectedLot.id}
+                </p>
               </div>
 
+              <button
+                type="button"
+                onClick={() =>
+                  setSelectedLot(null)
+                }
+                className="p-2 rounded-lg hover:bg-gray-100 text-gray-500"
+              >
+                <X size={18} />
+              </button>
+            </div>
 
-              {/* ACTIONS */}
+            <div className="p-5 space-y-5">
+              <div>
+                <p className="text-xs text-gray-400">
+                  Commodity
+                </p>
 
-              <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-3 pt-2">
+                <p className="mt-1 text-xl font-bold text-gray-900">
+                  {getCommodityName(
+                    selectedLot.crop,
+                    t
+                  )}
+                </p>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="rounded-lg border border-gray-200 p-4">
+                  <p className="text-xs text-gray-400">
+                    Available Quantity
+                  </p>
+
+                  <p className="mt-1 font-semibold text-gray-900">
+                    {selectedLot.quantity} quintals
+                  </p>
+                </div>
+
+                <div className="rounded-lg border border-gray-200 p-4">
+                  <p className="text-xs text-gray-400">
+                    Price
+                  </p>
+
+                  <p className="mt-1 font-semibold text-green-700">
+                    {formatCurrency(
+                      selectedLot.price
+                    )}{" "}
+                    / quintal
+                  </p>
+                </div>
+
+                <div className="rounded-lg border border-gray-200 p-4">
+                  <p className="text-xs text-gray-400">
+                    Grade
+                  </p>
+
+                  <p className="mt-1 font-semibold text-gray-900">
+                    {selectedLot.grade}
+                  </p>
+                </div>
+
+                <div className="rounded-lg border border-gray-200 p-4">
+                  <p className="text-xs text-gray-400">
+                    Seller
+                  </p>
+
+                  <p className="mt-1 font-semibold text-gray-900">
+                    {selectedLot.seller}
+                  </p>
+                </div>
+
+                <div className="rounded-lg border border-gray-200 p-4">
+                  <p className="text-xs text-gray-400">
+                    Pickup Location
+                  </p>
+
+                  <p className="mt-1 font-semibold text-gray-900">
+                    {selectedLot.pickupLocation}
+                  </p>
+                </div>
+
+                <div className="rounded-lg border border-gray-200 p-4">
+                  <p className="text-xs text-gray-400">
+                    Available From
+                  </p>
+
+                  <p className="mt-1 font-semibold text-gray-900">
+                    {formatDate(
+                      selectedLot.availableDate
+                    )}
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex justify-end gap-3">
+                <button
+                  type="button"
+                  onClick={() =>
+                    setSelectedLot(null)
+                  }
+                  className="px-4 py-2.5 rounded-lg border border-gray-200 text-sm font-semibold text-gray-700 hover:bg-gray-50"
+                >
+                  Close
+                </button>
 
                 <button
                   type="button"
-                  onClick={() => changeTab("lots")}
-                  className="px-5 py-2.5 rounded-lg border border-gray-200 text-sm font-semibold text-gray-700 hover:bg-gray-50 transition-colors"
+                  onClick={() => {
+                    setSelectedLot(null);
+                    openRequestModal(
+                      selectedLot
+                    );
+                  }}
+                  className="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg bg-green-600 text-white text-sm font-semibold hover:bg-green-700"
                 >
-                  Cancel
+                  <ShoppingCart size={15} />
+                  Request to Buy
                 </button>
-
-                <button
-                  type="submit"
-                  className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-lg bg-green-600 hover:bg-green-700 text-white text-sm font-semibold transition-colors"
-                >
-                  <Send size={16} />
-                  Post Demand
-                </button>
-
               </div>
-
-            </form>
-
-          )}
-
-        </section>
-
+            </div>
+          </div>
+        </div>
       )}
 
+      {requestLot && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="w-full max-w-md bg-white rounded-2xl shadow-xl">
+            <div className="flex items-start justify-between gap-4 px-5 py-4 border-b border-gray-100">
+              <div>
+                <h2 className="text-lg font-bold text-gray-900">
+                  Request to Buy
+                </h2>
+
+                <p className="text-xs text-gray-500 mt-1">
+                  {getCommodityName(
+                    requestLot.crop,
+                    t
+                  )}{" "}
+                  · {requestLot.id}
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={closeRequestModal}
+                disabled={requestLoading}
+                className="p-2 rounded-lg hover:bg-gray-100 text-gray-500 disabled:opacity-50"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <form
+              onSubmit={handleRequestToBuy}
+              className="p-5 space-y-5"
+            >
+              <div className="rounded-lg bg-gray-50 border border-gray-200 p-4">
+                <div className="flex items-center justify-between gap-3">
+                  <span className="text-xs text-gray-500">
+                    Available
+                  </span>
+
+                  <span className="text-sm font-semibold text-gray-900">
+                    {requestLot.quantity} quintals
+                  </span>
+                </div>
+
+                <div className="flex items-center justify-between gap-3 mt-2">
+                  <span className="text-xs text-gray-500">
+                    Price
+                  </span>
+
+                  <span className="text-sm font-semibold text-green-700">
+                    {formatCurrency(
+                      requestLot.price
+                    )}{" "}
+                    / quintal
+                  </span>
+                </div>
+              </div>
+
+              {requestError && (
+                <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3">
+                  <p className="text-sm text-red-700">
+                    {requestError}
+                  </p>
+                </div>
+              )}
+
+              {requestSuccess && (
+                <div className="rounded-lg border border-green-200 bg-green-50 px-4 py-3">
+                  <p className="text-sm text-green-700">
+                    {requestSuccess}
+                  </p>
+                </div>
+              )}
+
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">
+                  Requested Quantity
+                </label>
+
+                <div className="relative">
+                  <input
+                    type="number"
+                    value={requestQuantity}
+                    onChange={(e) =>
+                      setRequestQuantity(
+                        e.target.value
+                      )
+                    }
+                    min="0.01"
+                    max={requestLot.quantity}
+                    step="0.01"
+                    placeholder="Enter quantity"
+                    disabled={
+                      requestLoading ||
+                      Boolean(requestSuccess)
+                    }
+                    className="w-full rounded-lg border border-gray-300 px-3 py-2.5 pr-20 text-sm outline-none focus:border-green-500 focus:ring-2 focus:ring-green-100 disabled:bg-gray-50"
+                    required
+                  />
+
+                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-gray-400">
+                    Quintals
+                  </span>
+                </div>
+              </div>
+
+              <div className="flex justify-end gap-3">
+                <button
+                  type="button"
+                  onClick={closeRequestModal}
+                  disabled={requestLoading}
+                  className="px-4 py-2.5 rounded-lg border border-gray-200 text-sm font-semibold text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+                >
+                  Close
+                </button>
+
+                {!requestSuccess && (
+                  <button
+                    type="submit"
+                    disabled={
+                      requestLoading ||
+                      requestLot.quantity <= 0
+                    }
+                    className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-green-600 hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-60 text-white text-sm font-semibold"
+                  >
+                    <Send size={15} />
+                    {requestLoading
+                      ? "Sending..."
+                      : "Send Request"}
+                  </button>
+                )}
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

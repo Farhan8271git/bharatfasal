@@ -8,33 +8,26 @@ import {
 } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 
-// Payment pages
 import FarmerPaymentsPage from "./pages/FarmerPaymentsPage";
 import FPOPaymentsPage from "./pages/FPOPaymentsPage";
 import AdminPaymentsPage from "./pages/AdminPaymentsPage";
 
-// Layout and landing
 import Layout from "./components/Layout";
 import LandingPage from "./pages/LandingPage";
 
-// Language popup
 import LanguagePopup from "./components/landing/LanguagePopup";
 
-// Authentication
 import LoginPage from "./pages/LoginPage";
 import RegisterPage from "./pages/RegisterPage";
 import ForgotPasswordPage from "./pages/ForgotPasswordPage";
 import ResetPasswordPage from "./pages/ResetPasswordPage";
+import VerificationPage from "./pages/VerificationPage";
 
-
-
-// Dashboards
 import DashboardPage from "./pages/DashboardPage";
 import AdminDashboardPage from "./pages/AdminDashboardPage";
 import FPODashboardPage from "./pages/FPODashboardPage";
 import BuyerDashboardPage from "./pages/BuyerDashboardPage";
 
-// Marketplace pages
 import MandiPricesPage from "./pages/MandiPricesPage";
 import PriceDetailPage from "./pages/PriceDetailPage";
 import BuyerMarketPage from "./pages/BuyerMarketPage";
@@ -46,6 +39,8 @@ import PaymentsPage from "./pages/PaymentsPage";
 import DisputePage from "./pages/DisputePage";
 import SettingsPage from "./pages/SettingsPage";
 
+import { getCurrentUser, logoutUser } from "./api/auth.api";
+
 function App() {
   const { i18n } = useTranslation();
   const navigate = useNavigate();
@@ -55,18 +50,27 @@ function App() {
     location.pathname === "/"
   );
 
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
-
-  const [userRole, setUserRole] = useState(
-    localStorage.getItem("bf_user_role") || "farmer"
+  const [isLoggedIn, setIsLoggedIn] = useState(
+    sessionStorage.getItem("bf_logged_in") === "true"
   );
 
-  const [currentUser, setCurrentUser] = useState(null);
+  const [userRole, setUserRole] = useState(
+    sessionStorage.getItem("bf_user_role") || "farmer"
+  );
 
-  // Language popup
+  const [currentUser, setCurrentUser] = useState(() => {
+    try {
+      const savedUser = sessionStorage.getItem("bf_registered_user");
+      return savedUser ? JSON.parse(savedUser) : null;
+    } catch {
+      return null;
+    }
+  });
+
+  const [authLoading, setAuthLoading] = useState(true);
+
   const [showLanguagePopup, setShowLanguagePopup] = useState(true);
 
-  // Language initialization
   useEffect(() => {
     const savedLanguage = localStorage.getItem("bf_language");
 
@@ -75,7 +79,63 @@ function App() {
     }
   }, [i18n]);
 
-  // Language direction
+  useEffect(() => {
+    const restoreSession = async () => {
+      const token = sessionStorage.getItem("bf_auth_token");
+
+      if (!token) {
+        setAuthLoading(false);
+        return;
+      }
+
+      try {
+        const response = await getCurrentUser();
+
+        if (!response?.success || !response?.user) {
+          throw new Error("Invalid session.");
+        }
+
+        const backendUser = response.user;
+
+        const user = {
+          id: backendUser.id,
+          name: backendUser.name || "",
+          companyName: backendUser.organizationName || "",
+          email: backendUser.email || "",
+          role: backendUser.role,
+          location: backendUser.village || "",
+          phone: backendUser.mobile || "",
+          district: backendUser.district || "",
+          state: backendUser.state || "",
+        };
+
+        setCurrentUser(user);
+        setUserRole(backendUser.role);
+        setIsLoggedIn(true);
+
+        sessionStorage.setItem("bf_logged_in", "true");
+        sessionStorage.setItem("bf_user_role", backendUser.role);
+        sessionStorage.setItem(
+          "bf_registered_user",
+          JSON.stringify(user)
+        );
+      } catch {
+        sessionStorage.removeItem("bf_auth_token");
+        sessionStorage.removeItem("bf_logged_in");
+        sessionStorage.removeItem("bf_user_role");
+        sessionStorage.removeItem("bf_registered_user");
+
+        setIsLoggedIn(false);
+        setCurrentUser(null);
+        setUserRole("farmer");
+      } finally {
+        setAuthLoading(false);
+      }
+    };
+
+    restoreSession();
+  }, []);
+
   useEffect(() => {
     const lang = i18n.language || "en";
     const dir = lang === "ur" ? "rtl" : "ltr";
@@ -84,29 +144,28 @@ function App() {
     document.documentElement.setAttribute("lang", lang);
   }, [i18n.language]);
 
-  // Landing page check
   useEffect(() => {
-    if (location.pathname === "/") {
-      setIsLandingPage(true);
-    } else {
-      setIsLandingPage(false);
-    }
+    setIsLandingPage(location.pathname === "/");
   }, [location.pathname]);
 
-  // Get started
   const handleGetStarted = () => {
     navigate("/register");
   };
 
-  // Landing page login
   const handleLandingLogin = () => {
     navigate("/login");
   };
 
-  // Login
   const handleLogin = (role = "farmer", user = null) => {
-    localStorage.setItem("bf_logged_in", "true");
-    localStorage.setItem("bf_user_role", role);
+    sessionStorage.setItem("bf_logged_in", "true");
+    sessionStorage.setItem("bf_user_role", role);
+
+    if (user) {
+      sessionStorage.setItem(
+        "bf_registered_user",
+        JSON.stringify(user)
+      );
+    }
 
     setUserRole(role);
     setCurrentUser(user);
@@ -115,24 +174,34 @@ function App() {
     navigate("/");
   };
 
-  // Logout
-  const handleLogout = () => {
-    localStorage.removeItem("bf_logged_in");
-    localStorage.removeItem("bf_user_role");
+  const handleLogout = async () => {
+    try {
+      await logoutUser();
+    } catch {
+      // Local authentication state must be cleared even if the server request fails.
+    } finally {
+      sessionStorage.removeItem("bf_logged_in");
+      sessionStorage.removeItem("bf_user_role");
+      sessionStorage.removeItem("bf_token");
+      sessionStorage.removeItem("bf_auth_token");
+      sessionStorage.removeItem("bf_registered_user");
 
-    setIsLoggedIn(false);
-    setUserRole("farmer");
-    setCurrentUser(null);
+      setIsLoggedIn(false);
+      setUserRole("farmer");
+      setCurrentUser(null);
 
-    navigate("/");
+      navigate("/");
+    }
   };
 
-  // Language popup complete
   const handleLanguageComplete = () => {
     setShowLanguagePopup(false);
   };
 
-  // Landing page
+  if (authLoading) {
+    return null;
+  }
+
   if (location.pathname === "/" && !isLoggedIn) {
     return (
       <>
@@ -148,37 +217,34 @@ function App() {
     );
   }
 
-  // Register
   if (location.pathname === "/register" && !isLoggedIn) {
-    return <RegisterPage />;
+    return <RegisterPage onLogin={handleLogin} />;
   }
 
-  // Login
   if (location.pathname === "/login" && !isLoggedIn) {
     return <LoginPage onLogin={handleLogin} />;
   }
 
-  // Forgot password
   if (location.pathname === "/forgot-password" && !isLoggedIn) {
     return <ForgotPasswordPage />;
   }
 
-  // reset password
   if (location.pathname === "/reset-password" && !isLoggedIn) {
     return <ResetPasswordPage />;
   }
 
-  // Public mandi prices
+  if (location.pathname === "/verification" && isLoggedIn) {
+    return <VerificationPage user={currentUser} />;
+  }
+
   if (location.pathname === "/prices" && !isLoggedIn) {
     return <MandiPricesPage />;
   }
 
-  // Redirect unauthenticated users
   if (!isLoggedIn) {
     return <Navigate to="/" replace />;
   }
 
-  // Dashboard
   const getDashboard = () => {
     switch (userRole) {
       case "admin":
@@ -196,32 +262,31 @@ function App() {
     }
   };
 
-  // Authenticated application
   return (
     <Layout onLogout={handleLogout} user={currentUser}>
       <Routes>
-        {/* Dashboard */}
         <Route path="/" element={getDashboard()} />
 
-        {/* Mandi prices */}
-        <Route path="/prices" element={<MandiPricesPage />} />
+        <Route
+          path="/prices"
+          element={<MandiPricesPage />}
+        />
 
-        {/* Price details */}
         <Route
           path="/prices/:commodityId"
           element={<PriceDetailPage />}
         />
 
-        {/* Buyers */}
         <Route
           path="/buyers"
           element={<BuyerMarketPage user={currentUser} />}
         />
 
-        {/* Create lot */}
-        <Route path="/lots/create" element={<CreateLotPage />} />
+        <Route
+          path="/lots/create"
+          element={<CreateLotPage />}
+        />
 
-        {/* Lots */}
         <Route
           path="/lots"
           element={
@@ -233,10 +298,11 @@ function App() {
           }
         />
 
-        {/* Logistics */}
-        <Route path="/logistics" element={<LogisticsPage />} />
+        <Route
+          path="/logistics"
+          element={<LogisticsPage />}
+        />
 
-        {/* Payments */}
         <Route
           path="/payments"
           element={
@@ -254,10 +320,11 @@ function App() {
           }
         />
 
-        {/* Disputes */}
-        <Route path="/disputes" element={<DisputePage />} />
+        <Route
+          path="/disputes"
+          element={<DisputePage />}
+        />
 
-        {/* Settings */}
         <Route
           path="/settings"
           element={
@@ -268,8 +335,10 @@ function App() {
           }
         />
 
-        {/* Unknown route */}
-        <Route path="*" element={<Navigate to="/" replace />} />
+        <Route
+          path="*"
+          element={<Navigate to="/" replace />}
+        />
       </Routes>
     </Layout>
   );
