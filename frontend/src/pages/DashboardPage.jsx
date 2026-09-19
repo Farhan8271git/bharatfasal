@@ -22,6 +22,8 @@ import { getGreeting, formatCurrency } from "../utils/formatters";
 import { getMyLots } from "../api/lots.api";
 import { getSellerPurchaseRequests } from "../api/purchaseRequests.api";
 import { getSellerOrders } from "../api/orders.api";
+import { getRecommendedBuyers } from "../api/buyers.api";
+
 
 export default function DashboardPage({ user }) {
   const { t, i18n } = useTranslation();
@@ -34,6 +36,9 @@ export default function DashboardPage({ user }) {
   const [sellerOrders, setSellerOrders] = useState([]);
   const [isLoadingLots, setIsLoadingLots] = useState(true);
   const [isLoadingOrders, setIsLoadingOrders] = useState(true);
+  const [recommendedBuyers, setRecommendedBuyers] = useState([]);
+  const [isLoadingRecommendedBuyers, setIsLoadingRecommendedBuyers] = useState(true);
+
 
   const previousPricesRef = useRef({});
 
@@ -53,6 +58,8 @@ export default function DashboardPage({ user }) {
       activeLots: "Active Lots",
       paymentsPending: "Payments Pending",
       recommendedBuyers: "Recommended Buyers",
+      recommendedBuyersDescription:
+        "Buyers with active demand matching your listed crops",
       quickActivities: "Quickly access your farming activities",
       newLot: "New Lot",
       findBuyer: "Find Buyer",
@@ -111,6 +118,8 @@ export default function DashboardPage({ user }) {
       activeLots: "सक्रिय लॉट्स",
       paymentsPending: "लंबित भुगतान",
       recommendedBuyers: "अनुशंसित खरीदार",
+      recommendedBuyersDescription:
+        "आपकी सूचीबद्ध फसलों की मांग रखने वाले खरीदार",
       quickActivities: "अपनी खेती से जुड़ी गतिविधियों तक जल्दी पहुँचें",
       newLot: "नई लॉट",
       findBuyer: "खरीदार खोजें",
@@ -169,6 +178,8 @@ export default function DashboardPage({ user }) {
       activeLots: "فعال لاٹس",
       paymentsPending: "زیر التوا ادائیگیاں",
       recommendedBuyers: "تجویز کردہ خریدار",
+      recommendedBuyersDescription:
+        "آپ کی درج فصلوں کی فعال طلب رکھنے والے خریدار",
       quickActivities: "اپنی زرعی سرگرمیوں تک فوری رسائی حاصل کریں",
       newLot: "نئی لاٹ",
       findBuyer: "خریدار تلاش کریں",
@@ -227,6 +238,8 @@ export default function DashboardPage({ user }) {
       activeLots: "Active Lots",
       paymentsPending: "Payments Pending",
       recommendedBuyers: "Recommended Buyers",
+      recommendedBuyersDescription:
+        "Aapki listed crops ki active demand rakhne wale buyers",
       quickActivities: "Apni farming activities ko quickly access karein",
       newLot: "New Lot",
       findBuyer: "Buyer Dhundhein",
@@ -368,11 +381,55 @@ export default function DashboardPage({ user }) {
           }),
         ]);
 
-        setActiveLots(
-          Array.isArray(lotsResponse?.lots)
-            ? lotsResponse.lots
+        const lots = Array.isArray(lotsResponse?.lots)
+          ? lotsResponse.lots
+          : [];
+
+        setActiveLots(lots);
+
+        setSellerRequests(
+          Array.isArray(requestsResponse?.requests)
+            ? requestsResponse.requests
             : []
         );
+
+        setSellerOrders(
+          Array.isArray(ordersResponse?.orders)
+            ? ordersResponse.orders
+            : []
+        );
+
+        if (lots.length === 0) {
+          setRecommendedBuyers([]);
+          setIsLoadingRecommendedBuyers(false);
+        } else {
+          const recommendationResponses = await Promise.all(
+            lots.map((lot) =>
+              getRecommendedBuyers({
+                lotId: lot._id,
+                page: 1,
+                limit: 50,
+              })
+            )
+          );
+
+          const uniqueBuyers = new Map();
+
+          recommendationResponses.forEach((response) => {
+            const buyers = Array.isArray(response?.buyers)
+              ? response.buyers
+              : [];
+
+            buyers.forEach((buyer) => {
+              if (buyer?.id && !uniqueBuyers.has(buyer.id)) {
+                uniqueBuyers.set(buyer.id, buyer);
+              }
+            });
+          });
+
+          setRecommendedBuyers([...uniqueBuyers.values()]);
+          setIsLoadingRecommendedBuyers(false);
+        }
 
         setSellerRequests(
           Array.isArray(requestsResponse?.requests)
@@ -391,6 +448,8 @@ export default function DashboardPage({ user }) {
         setActiveLots([]);
         setSellerRequests([]);
         setSellerOrders([]);
+        setRecommendedBuyers([]);
+        setIsLoadingRecommendedBuyers(false);
       } finally {
         setIsLoadingLots(false);
         setIsLoadingOrders(false);
@@ -406,8 +465,10 @@ export default function DashboardPage({ user }) {
       setActiveLots([]);
       setSellerRequests([]);
       setSellerOrders([]);
+      setRecommendedBuyers([]);
       setIsLoadingLots(false);
       setIsLoadingOrders(false);
+      setIsLoadingRecommendedBuyers(false);
     }
   }, [currentUser?.role]);
 
@@ -721,7 +782,11 @@ export default function DashboardPage({ user }) {
           <StatCard
             image="/images/stats/nearby-buyer.jpg"
             label={d.recommendedBuyers}
-            value="—"
+            value={
+              isLoadingRecommendedBuyers
+                ? "—"
+                : String(recommendedBuyers.length)
+            }
             color="primary"
           />
         </div>
@@ -1073,6 +1138,203 @@ export default function DashboardPage({ user }) {
                 {d.latestMandi}
               </p>
             </div>
+
+            <section>
+              <div
+                className="
+              flex
+              items-center
+              justify-between
+              mb-3
+            "
+              >
+                <div>
+                  <h3 className="text-lg font-bold text-gray-900">
+                    {d.recommendedBuyers}
+                  </h3>
+
+                  <p className="text-sm text-gray-500 mt-0.5">
+                    {d.recommendedBuyersDescription}
+                  </p>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => navigate("/buyers")}
+                  className="
+                inline-flex
+                items-center
+                gap-1
+                text-primary-600
+                text-sm
+                font-semibold
+                hover:text-primary-700
+              "
+                >
+                  {d.findBuyer}
+                  <ArrowRight size={15} />
+                </button>
+              </div>
+
+              {isLoadingRecommendedBuyers ? (
+                <div
+                  className="
+                bg-white
+                border
+                border-gray-200
+                rounded-2xl
+                p-6
+                text-center
+                text-sm
+                text-gray-500
+              "
+                >
+                  Loading recommended buyers...
+                </div>
+              ) : recommendedBuyers.length === 0 ? (
+                <div
+                  className="
+                bg-white
+                border
+                border-gray-200
+                rounded-2xl
+                p-6
+                text-center
+                text-sm
+                text-gray-500
+              "
+                >
+                  No matching buyers found for your active lots.
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+                  {recommendedBuyers.slice(0, 6).map((buyer) => (
+                    <div
+                      key={buyer.id}
+                      className="
+                    bg-white
+                    border
+                    border-gray-200
+                    rounded-2xl
+                    p-4
+                    shadow-sm
+                    hover:shadow-md
+                    transition-shadow
+                  "
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <h4 className="font-bold text-gray-900 truncate">
+                            {buyer.name}
+                          </h4>
+
+                          {buyer.organizationName && (
+                            <p className="text-xs text-gray-500 mt-1 truncate">
+                              {buyer.organizationName}
+                            </p>
+                          )}
+                        </div>
+
+                        <div
+                          className="
+                        w-10
+                        h-10
+                        rounded-xl
+                        bg-primary-50
+                        border
+                        border-primary-100
+                        flex
+                        items-center
+                        justify-center
+                        shrink-0
+                      "
+                        >
+                          <Users
+                            size={19}
+                            className="text-primary-600"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="mt-4 space-y-2 text-sm">
+                        {buyer.businessType && (
+                          <div className="flex items-center justify-between gap-3">
+                            <span className="text-gray-500">
+                              Business
+                            </span>
+
+                            <span className="font-medium text-gray-800">
+                              {buyer.businessType}
+                            </span>
+                          </div>
+                        )}
+
+                        {(buyer.district || buyer.state) && (
+                          <div className="flex items-center justify-between gap-3">
+                            <span className="text-gray-500">
+                              Location
+                            </span>
+
+                            <span className="font-medium text-gray-800 text-right">
+                              {[buyer.district, buyer.state]
+                                .filter(Boolean)
+                                .join(", ")}
+                            </span>
+                          </div>
+                        )}
+
+                        <div className="flex items-center justify-between gap-3">
+                          <span className="text-gray-500">
+                            Active Demands
+                          </span>
+
+                          <span className="font-semibold text-gray-900">
+                            {buyer.activeDemandCount}
+                          </span>
+                        </div>
+
+                        <div className="flex items-center justify-between gap-3">
+                          <span className="text-gray-500">
+                            Matched Demands
+                          </span>
+
+                          <span className="font-semibold text-primary-700">
+                            {buyer.matchedDemandCount}
+                          </span>
+                        </div>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => navigate("/buyers")}
+                        className="
+                      w-full
+                      mt-4
+                      inline-flex
+                      items-center
+                      justify-center
+                      gap-1.5
+                      px-4
+                      py-2.5
+                      rounded-xl
+                      bg-gray-50
+                      border
+                      border-gray-200
+                      text-sm
+                      font-semibold
+                      text-gray-700
+                      hover:bg-gray-100
+                      transition-colors
+                    "
+                      >
+                        {d.findBuyer}
+                        <ArrowRight size={15} />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </section>
 
             <button
               type="button"

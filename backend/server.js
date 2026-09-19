@@ -13,6 +13,8 @@ import purchaseRequestRoutes from "./routes/purchaseRequest.routes.js";
 import orderRoutes from "./routes/order.routes.js";
 import demandRoutes from "./routes/demand.routes.js";
 import ratingRoutes from "./routes/rating.routes.js";
+import buyerRoutes from "./routes/buyer.routes.js";
+
 
 
 import connectDB from "./config/db.js";
@@ -50,6 +52,7 @@ app.use("/api/purchase-requests", purchaseRequestRoutes);
 app.use("/api/orders", orderRoutes);
 app.use("/api/demands", demandRoutes);
 app.use("/api/ratings", ratingRoutes);
+app.use("/api/buyers", buyerRoutes);
 
 
 
