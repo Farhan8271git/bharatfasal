@@ -14,8 +14,8 @@ import orderRoutes from "./routes/order.routes.js";
 import demandRoutes from "./routes/demand.routes.js";
 import ratingRoutes from "./routes/rating.routes.js";
 import buyerRoutes from "./routes/buyer.routes.js";
-
-
+import logisticsRoutes from "./routes/logistics.routes.js";
+import disputeRoutes from "./routes/dispute.routes.js";
 
 import connectDB from "./config/db.js";
 
@@ -53,8 +53,8 @@ app.use("/api/orders", orderRoutes);
 app.use("/api/demands", demandRoutes);
 app.use("/api/ratings", ratingRoutes);
 app.use("/api/buyers", buyerRoutes);
-
-
+app.use("/api/logistics", logisticsRoutes);
+app.use("/api/disputes", disputeRoutes);
 
 app.use((err, req, res, next) => {
   console.error("Global error:", err);

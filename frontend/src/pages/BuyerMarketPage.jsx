@@ -247,7 +247,7 @@ export default function BuyerMarketPage({ user }) {
 
         setDemandError(
           error?.message ||
-            "Unable to load your demands."
+          "Unable to load your demands."
         );
       } finally {
         if (!cancelled) {
@@ -301,7 +301,7 @@ export default function BuyerMarketPage({ user }) {
 
         setLotsError(
           error?.message ||
-            "Unable to load available lots."
+          "Unable to load available lots."
         );
         setLots([]);
       } finally {
@@ -353,7 +353,7 @@ export default function BuyerMarketPage({ user }) {
 
         setSellerRequestsError(
           error?.message ||
-            "Unable to load buyer requests."
+          "Unable to load buyer requests."
         );
         setSellerRequests([]);
       } finally {
@@ -404,7 +404,7 @@ export default function BuyerMarketPage({ user }) {
 
         setMarketDemandsError(
           error?.message ||
-            "Unable to load buyer demands."
+          "Unable to load buyer demands."
         );
 
         setMarketDemands([]);
@@ -499,7 +499,7 @@ export default function BuyerMarketPage({ user }) {
         const matchesType =
           typeFilter === "all" ||
           normalizedType ===
-            typeFilter.toLowerCase();
+          typeFilter.toLowerCase();
 
         return matchesSearch && matchesType;
       }
@@ -509,6 +509,22 @@ export default function BuyerMarketPage({ user }) {
     search,
     typeFilter,
   ]);
+
+  const buyerTypes = useMemo(() => {
+    const types = new Set();
+
+    sellerRequests.forEach((request) => {
+      const businessType = request?.buyerId?.businessType;
+
+      if (businessType) {
+        types.add(String(businessType).trim());
+      }
+    });
+
+    return Array.from(types).sort((first, second) =>
+      first.localeCompare(second)
+    );
+  }, [sellerRequests]);
 
   const filteredLots = useMemo(() => {
     const searchText = lotSearch
@@ -644,7 +660,7 @@ export default function BuyerMarketPage({ user }) {
     } catch (error) {
       setDemandError(
         error?.message ||
-          "Unable to create buyer demand."
+        "Unable to create buyer demand."
       );
     } finally {
       setDemandLoading(false);
@@ -729,25 +745,11 @@ export default function BuyerMarketPage({ user }) {
         "Purchase request sent successfully."
       );
 
-      setLots((previousLots) =>
-        previousLots.map((lot) => {
-          if (lot.id !== requestLot.id) {
-            return lot;
-          }
-
-          return {
-            ...lot,
-            quantity: Math.max(
-              0,
-              lot.quantity - quantity
-            ),
-          };
-        })
-      );
+      
     } catch (error) {
       setRequestError(
         error?.message ||
-          "Unable to send purchase request."
+        "Unable to send purchase request."
       );
     } finally {
       setRequestLoading(false);
@@ -797,11 +799,10 @@ export default function BuyerMarketPage({ user }) {
             <button
               type="button"
               onClick={() => changeTab("buyers")}
-              className={`flex items-center justify-center gap-2 rounded-lg px-3 py-2.5 text-sm font-semibold transition-colors ${
-                tab === "buyers"
-                  ? "bg-green-600 text-white"
-                  : "text-gray-600 hover:bg-gray-50"
-              }`}
+              className={`flex items-center justify-center gap-2 rounded-lg px-3 py-2.5 text-sm font-semibold transition-colors ${tab === "buyers"
+                ? "bg-green-600 text-white"
+                : "text-gray-600 hover:bg-gray-50"
+                }`}
             >
               <Handshake size={16} />
               Interested Buyers
@@ -810,11 +811,10 @@ export default function BuyerMarketPage({ user }) {
             <button
               type="button"
               onClick={() => changeTab("demand")}
-              className={`flex items-center justify-center gap-2 rounded-lg px-3 py-2.5 text-sm font-semibold transition-colors ${
-                tab === "demand"
-                  ? "bg-green-600 text-white"
-                  : "text-gray-600 hover:bg-gray-50"
-              }`}
+              className={`flex items-center justify-center gap-2 rounded-lg px-3 py-2.5 text-sm font-semibold transition-colors ${tab === "demand"
+                ? "bg-green-600 text-white"
+                : "text-gray-600 hover:bg-gray-50"
+                }`}
             >
               <ClipboardList size={16} />
               Buyer Demands
@@ -834,18 +834,10 @@ export default function BuyerMarketPage({ user }) {
                     id: "all",
                     label: "All",
                   },
-                  {
-                    id: "processor",
-                    label: "Processors",
-                  },
-                  {
-                    id: "trader",
-                    label: "Traders",
-                  },
-                  {
-                    id: "institutional",
-                    label: "Institutional",
-                  },
+                  ...buyerTypes.map((type) => ({
+                    id: type.toLowerCase(),
+                    label: type,
+                  })),
                 ].map((type) => (
                   <button
                     key={type.id}
@@ -853,11 +845,10 @@ export default function BuyerMarketPage({ user }) {
                     onClick={() =>
                       setTypeFilter(type.id)
                     }
-                    className={`px-4 py-2 rounded-full text-sm font-semibold whitespace-nowrap transition-colors ${
-                      typeFilter === type.id
-                        ? "bg-green-600 text-white"
-                        : "bg-white text-gray-600 border border-gray-200 hover:border-green-300"
-                    }`}
+                    className={`px-4 py-2 rounded-full text-sm font-semibold whitespace-nowrap transition-colors ${typeFilter === type.id
+                      ? "bg-green-600 text-white"
+                      : "bg-white text-gray-600 border border-gray-200 hover:border-green-300"
+                      }`}
                   >
                     {type.label}
                   </button>
@@ -1045,17 +1036,17 @@ export default function BuyerMarketPage({ user }) {
 
                             {(demand.buyerId?.district ||
                               demand.buyerId?.state) && (
-                              <p className="text-xs text-gray-400 mt-1 flex items-center gap-1">
-                                <MapPin size={13} />
+                                <p className="text-xs text-gray-400 mt-1 flex items-center gap-1">
+                                  <MapPin size={13} />
 
-                                {[
-                                  demand.buyerId?.district,
-                                  demand.buyerId?.state,
-                                ]
-                                  .filter(Boolean)
-                                  .join(", ")}
-                              </p>
-                            )}
+                                  {[
+                                    demand.buyerId?.district,
+                                    demand.buyerId?.state,
+                                  ]
+                                    .filter(Boolean)
+                                    .join(", ")}
+                                </p>
+                              )}
                           </div>
                         </div>
 
@@ -1215,11 +1206,10 @@ export default function BuyerMarketPage({ user }) {
             <button
               type="button"
               onClick={() => changeTab("lots")}
-              className={`flex items-center justify-center gap-2 rounded-lg px-3 py-2.5 text-sm font-semibold transition-colors ${
-                tab === "lots"
-                  ? "bg-green-600 text-white"
-                  : "text-gray-600 hover:bg-gray-50"
-              }`}
+              className={`flex items-center justify-center gap-2 rounded-lg px-3 py-2.5 text-sm font-semibold transition-colors ${tab === "lots"
+                ? "bg-green-600 text-white"
+                : "text-gray-600 hover:bg-gray-50"
+                }`}
             >
               <Package size={16} />
               Available Lots
@@ -1228,11 +1218,10 @@ export default function BuyerMarketPage({ user }) {
             <button
               type="button"
               onClick={() => changeTab("demands")}
-              className={`flex items-center justify-center gap-2 rounded-lg px-3 py-2.5 text-sm font-semibold transition-colors ${
-                tab === "demands"
-                  ? "bg-green-600 text-white"
-                  : "text-gray-600 hover:bg-gray-50"
-              }`}
+              className={`flex items-center justify-center gap-2 rounded-lg px-3 py-2.5 text-sm font-semibold transition-colors ${tab === "demands"
+                ? "bg-green-600 text-white"
+                : "text-gray-600 hover:bg-gray-50"
+                }`}
             >
               <ClipboardList size={16} />
               My Demands
@@ -1241,11 +1230,10 @@ export default function BuyerMarketPage({ user }) {
             <button
               type="button"
               onClick={() => changeTab("post")}
-              className={`flex items-center justify-center gap-2 rounded-lg px-3 py-2.5 text-sm font-semibold transition-colors ${
-                tab === "post"
-                  ? "bg-green-600 text-white"
-                  : "text-gray-600 hover:bg-gray-50"
-              }`}
+              className={`flex items-center justify-center gap-2 rounded-lg px-3 py-2.5 text-sm font-semibold transition-colors ${tab === "post"
+                ? "bg-green-600 text-white"
+                : "text-gray-600 hover:bg-gray-50"
+                }`}
             >
               <Plus size={16} />
               Post Demand
@@ -1263,11 +1251,10 @@ export default function BuyerMarketPage({ user }) {
                 <button
                   type="button"
                   onClick={() => setLotGrade("all")}
-                  className={`px-4 py-2 rounded-full text-sm font-semibold whitespace-nowrap transition-colors ${
-                    lotGrade === "all"
-                      ? "bg-green-600 text-white"
-                      : "bg-white text-gray-600 border border-gray-200 hover:border-green-300"
-                  }`}
+                  className={`px-4 py-2 rounded-full text-sm font-semibold whitespace-nowrap transition-colors ${lotGrade === "all"
+                    ? "bg-green-600 text-white"
+                    : "bg-white text-gray-600 border border-gray-200 hover:border-green-300"
+                    }`}
                 >
                   All Grades
                 </button>
@@ -1279,11 +1266,10 @@ export default function BuyerMarketPage({ user }) {
                     onClick={() =>
                       setLotGrade(grade)
                     }
-                    className={`px-4 py-2 rounded-full text-sm font-semibold whitespace-nowrap transition-colors ${
-                      lotGrade === grade
-                        ? "bg-green-600 text-white"
-                        : "bg-white text-gray-600 border border-gray-200 hover:border-green-300"
-                    }`}
+                    className={`px-4 py-2 rounded-full text-sm font-semibold whitespace-nowrap transition-colors ${lotGrade === grade
+                      ? "bg-green-600 text-white"
+                      : "bg-white text-gray-600 border border-gray-200 hover:border-green-300"
+                      }`}
                   >
                     {grade}
                   </button>
@@ -1345,12 +1331,6 @@ export default function BuyerMarketPage({ user }) {
                                 )}
                               </h3>
 
-                              {lot.verified && (
-                                <span className="inline-flex items-center gap-1 rounded-full bg-green-50 px-2 py-1 text-[11px] font-semibold text-green-700">
-                                  <CheckCircle2 size={11} />
-                                  Verified Seller
-                                </span>
-                              )}
                             </div>
 
                             <p className="text-xs text-gray-400 mt-1">
@@ -1456,10 +1436,10 @@ export default function BuyerMarketPage({ user }) {
 
                               <p className="text-sm font-semibold text-gray-900">
                                 {lot.transportation ===
-                                "buyer"
+                                  "buyer"
                                   ? "Buyer will arrange"
                                   : lot.transportation ===
-                                      "seller"
+                                    "seller"
                                     ? "Seller will arrange"
                                     : lot.transportation}
                               </p>
@@ -1584,7 +1564,7 @@ export default function BuyerMarketPage({ user }) {
                             <span
                               className={`px-2 py-0.5 rounded-full text-[11px] font-semibold capitalize ${getStatusColor(
                                 demand.status ||
-                                  "active"
+                                "active"
                               )}`}
                             >
                               {demand.status ||
@@ -1630,18 +1610,18 @@ export default function BuyerMarketPage({ user }) {
 
                               <p className="mt-1 text-sm font-semibold text-gray-900">
                                 {demand.estimatedPrice !=
-                                null
+                                  null
                                   ? formatCurrency(
-                                      demand.estimatedPrice
-                                    )
+                                    demand.estimatedPrice
+                                  )
                                   : "Not specified"}
                                 {demand.estimatedPrice !=
                                   null && (
-                                  <span className="text-xs font-normal text-gray-500">
-                                    {" "}
-                                    / quintal
-                                  </span>
-                                )}
+                                    <span className="text-xs font-normal text-gray-500">
+                                      {" "}
+                                      / quintal
+                                    </span>
+                                  )}
                               </p>
                             </div>
 
@@ -1688,13 +1668,13 @@ export default function BuyerMarketPage({ user }) {
                                 />
 
                                 {demand.transportation ===
-                                "buyer"
+                                  "buyer"
                                   ? "Buyer will arrange"
                                   : demand.transportation ===
-                                      "seller"
+                                    "seller"
                                     ? "Seller will arrange"
                                     : demand.transportation ||
-                                      "Not specified"}
+                                    "Not specified"}
                               </p>
                             </div>
                           </div>
@@ -2022,12 +2002,11 @@ export default function BuyerMarketPage({ user }) {
                       ].map((option) => (
                         <label
                           key={option.value}
-                          className={`relative flex items-start gap-3 p-4 rounded-xl border cursor-pointer transition-all ${
-                            formData.transportation ===
+                          className={`relative flex items-start gap-3 p-4 rounded-xl border cursor-pointer transition-all ${formData.transportation ===
                             option.value
-                              ? "border-green-500 bg-green-50 ring-1 ring-green-500"
-                              : "border-gray-200 hover:border-gray-300"
-                          }`}
+                            ? "border-green-500 bg-green-50 ring-1 ring-green-500"
+                            : "border-gray-200 hover:border-gray-300"
+                            }`}
                         >
                           <input
                             type="radio"
@@ -2042,17 +2021,16 @@ export default function BuyerMarketPage({ user }) {
                           />
 
                           <div
-                            className={`w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 mt-0.5 ${
-                              formData.transportation ===
+                            className={`w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 mt-0.5 ${formData.transportation ===
                               option.value
-                                ? "border-green-600"
-                                : "border-gray-300"
-                            }`}
+                              ? "border-green-600"
+                              : "border-gray-300"
+                              }`}
                           >
                             {formData.transportation ===
                               option.value && (
-                              <div className="w-2.5 h-2.5 rounded-full bg-green-600" />
-                            )}
+                                <div className="w-2.5 h-2.5 rounded-full bg-green-600" />
+                              )}
                           </div>
 
                           <div>

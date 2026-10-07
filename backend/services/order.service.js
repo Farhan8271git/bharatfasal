@@ -1,8 +1,22 @@
 import mongoose from "mongoose";
+
 import Order from "../models/order.model.js";
+
+const ORDER_STATUSES = [
+  "pending",
+  "confirmed",
+  "processing",
+  "ready_for_pickup",
+  "in_transit",
+  "delivered",
+  "completed",
+  "cancelled",
+  "disputed",
+];
 
 const normalizePagination = (page, limit) => {
   const normalizedPage = Math.max(Number.parseInt(page, 10) || 1, 1);
+
   const normalizedLimit = Math.min(
     Math.max(Number.parseInt(limit, 10) || 20, 1),
     100
@@ -23,14 +37,28 @@ const validateObjectId = (id, message = "Invalid order ID.") => {
   }
 };
 
+const normalizeStatus = (status) => {
+  if (!status) {
+    return undefined;
+  }
+
+  const normalizedStatus = String(status).trim().toLowerCase();
+
+  if (!ORDER_STATUSES.includes(normalizedStatus)) {
+    const error = new Error("Invalid order status.");
+    error.statusCode = 400;
+    throw error;
+  }
+
+  return normalizedStatus;
+};
+
 const buildOrderQuery = ({ role, userId, status }) => {
   const query = {};
 
   if (role === "buyer") {
     query.buyerId = userId;
-  }
-
-  if (role === "farmer" || role === "fpo") {
+  } else if (role === "farmer" || role === "fpo") {
     query.sellerId = userId;
   }
 
@@ -41,6 +69,13 @@ const buildOrderQuery = ({ role, userId, status }) => {
   return query;
 };
 
+const buildPaginationResponse = (pagination, total) => ({
+  page: pagination.page,
+  limit: pagination.limit,
+  total,
+  totalPages: Math.ceil(total / pagination.limit),
+});
+
 export const getBuyerOrders = async ({
   buyerId,
   status,
@@ -48,11 +83,12 @@ export const getBuyerOrders = async ({
   limit,
 }) => {
   const pagination = normalizePagination(page, limit);
+  const normalizedStatus = normalizeStatus(status);
 
   const query = buildOrderQuery({
     role: "buyer",
     userId: buyerId,
-    status,
+    status: normalizedStatus,
   });
 
   const [orders, total] = await Promise.all([
@@ -75,27 +111,24 @@ export const getBuyerOrders = async ({
 
   return {
     orders,
-    pagination: {
-      page: pagination.page,
-      limit: pagination.limit,
-      total,
-      totalPages: Math.ceil(total / pagination.limit),
-    },
+    pagination: buildPaginationResponse(pagination, total),
   };
 };
 
 export const getSellerOrders = async ({
   sellerId,
+  sellerRole,
   status,
   page,
   limit,
 }) => {
   const pagination = normalizePagination(page, limit);
+  const normalizedStatus = normalizeStatus(status);
 
   const query = buildOrderQuery({
-    role: "farmer",
+    role: sellerRole,
     userId: sellerId,
-    status,
+    status: normalizedStatus,
   });
 
   const [orders, total] = await Promise.all([
@@ -118,12 +151,7 @@ export const getSellerOrders = async ({
 
   return {
     orders,
-    pagination: {
-      page: pagination.page,
-      limit: pagination.limit,
-      total,
-      totalPages: Math.ceil(total / pagination.limit),
-    },
+    pagination: buildPaginationResponse(pagination, total),
   };
 };
 

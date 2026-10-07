@@ -11,7 +11,7 @@ import { useTranslation } from "react-i18next";
 import FarmerPaymentsPage from "./pages/FarmerPaymentsPage";
 import FPOPaymentsPage from "./pages/FPOPaymentsPage";
 import AdminPaymentsPage from "./pages/AdminPaymentsPage";
-
+import OrderDetailsPage from "./pages/OrderDetailsPage";
 import Layout from "./components/Layout";
 import LandingPage from "./pages/LandingPage";
 
@@ -322,7 +322,7 @@ function App() {
 
         <Route
           path="/disputes"
-          element={<DisputePage />}
+          element={<DisputePage user={currentUser} />}
         />
 
         <Route
@@ -333,6 +333,11 @@ function App() {
               user={currentUser}
             />
           }
+        />
+
+        <Route
+          path="/orders/:id"
+          element={<OrderDetailsPage user={currentUser} />}
         />
 
         <Route
