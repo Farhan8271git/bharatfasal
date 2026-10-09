@@ -200,3 +200,54 @@ export const getOrderById = async ({
 
   return order;
 };
+
+export const getBuyerOrderSummary = async ({ buyerId }) => {
+  if (!mongoose.isValidObjectId(buyerId)) {
+    const error = new Error("Invalid buyer ID.");
+    error.statusCode = 400;
+    throw error;
+  }
+
+  const buyerObjectId = new mongoose.Types.ObjectId(buyerId);
+
+  const [summary] = await Order.aggregate([
+    {
+      $match: {
+        buyerId: buyerObjectId,
+        status: {
+          $in: ["delivered", "completed"],
+        },
+      },
+    },
+    {
+      $group: {
+        _id: null,
+        purchasedQuantity: {
+          $sum: "$quantity",
+        },
+        completedPurchases: {
+          $sum: 1,
+        },
+        totalPurchaseValue: {
+          $sum: "$totalAmount",
+        },
+      },
+    },
+    {
+      $project: {
+        _id: 0,
+        purchasedQuantity: 1,
+        completedPurchases: 1,
+        totalPurchaseValue: 1,
+      },
+    },
+  ]);
+
+  return (
+    summary || {
+      purchasedQuantity: 0,
+      completedPurchases: 0,
+      totalPurchaseValue: 0,
+    }
+  );
+};

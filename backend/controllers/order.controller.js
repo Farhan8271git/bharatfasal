@@ -2,6 +2,7 @@ import {
   getBuyerOrders,
   getSellerOrders,
   getOrderById,
+  getBuyerOrderSummary,
 } from "../services/order.service.js";
 
 const getErrorStatus = (error) => {
@@ -81,6 +82,26 @@ export const getOrderByIdController = async (req, res) => {
     return res.status(getErrorStatus(error)).json({
       success: false,
       message: error?.message || "Unable to retrieve order.",
+    });
+  }
+};
+
+export const getBuyerOrderSummaryController = async (req, res) => {
+  try {
+    const summary = await getBuyerOrderSummary({
+      buyerId: req.user.id,
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: "Buyer order summary retrieved successfully.",
+      summary,
+    });
+  } catch (error) {
+    return res.status(error?.statusCode || 500).json({
+      success: false,
+      message:
+        error?.message || "Unable to retrieve buyer order summary.",
     });
   }
 };

@@ -47,3 +47,10 @@ export const getOrderById = async (orderId) => {
 
   return apiRequest(`/orders/${encodeURIComponent(orderId)}`);
 };
+
+export const getBuyerOrderSummary = async () => {
+  return apiRequest("/orders/buyer/summary", {
+    method: "GET",
+    auth: true,
+  });
+};

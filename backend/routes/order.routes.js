@@ -1,11 +1,10 @@
 import express from "express";
-
 import {
   getBuyerOrdersController,
   getSellerOrdersController,
   getOrderByIdController,
+  getBuyerOrderSummaryController,
 } from "../controllers/order.controller.js";
-
 import {
   protect,
   authorize,
@@ -19,6 +18,12 @@ router.get(
   "/buyer",
   authorize("buyer"),
   getBuyerOrdersController
+);
+
+router.get(
+  "/buyer/summary",
+  authorize("buyer"),
+  getBuyerOrderSummaryController
 );
 
 router.get(
