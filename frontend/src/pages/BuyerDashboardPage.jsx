@@ -20,15 +20,26 @@ import {
   Star,
   Truck,
   UserRound,
-  Wallet,
   X,
 } from "lucide-react";
 
 import { getLots } from "../api/lots.api";
 import { getMandiPrices } from "../api/mandiPrices.api";
-import { getBuyerOrders } from "../api/orders.api";
+import {
+  getBuyerOrders,
+  getBuyerOrderSummary,
+} from "../api/orders.api";
 import { getMyDemands } from "../api/demands.api";
 import { getMyVerification } from "../api/verifications.api";
+import { createDispute } from "../api/disputes.api";
+
+const QUESTION_TYPE_TO_DISPUTE_TYPE = {
+  Payment: "payment_issue",
+  Order: "other_issue",
+  Logistics: "delivery_issue",
+  Quality: "quality_dispute",
+  Other: "other_issue",
+};
 
 const formatCurrency = (value) => {
   const amount = Number(value);
@@ -87,10 +98,7 @@ const getVerificationStatusClass = (status) => {
     rejected: "bg-red-50 text-red-700 border-red-200",
   };
 
-  return (
-    classes[status] ||
-    "bg-slate-50 text-slate-600 border-slate-200"
-  );
+  return classes[status] || "bg-slate-50 text-slate-600 border-slate-200";
 };
 
 const getDocumentStatus = (value) => {
@@ -98,9 +106,7 @@ const getDocumentStatus = (value) => {
 };
 
 const getDocumentStatusClass = (value) => {
-  return value === true
-    ? "text-emerald-700"
-    : "text-slate-500";
+  return value === true ? "text-emerald-700" : "text-slate-500";
 };
 
 const getOrderId = (order) => {
@@ -158,12 +164,10 @@ const normalizeOrder = (order) => {
     unit: order?.unit || "quintal",
     pricePerUnit,
     totalAmount:
-      Number(order?.totalAmount) ||
-      quantity * pricePerUnit,
+      Number(order?.totalAmount) || quantity * pricePerUnit,
     status: order?.status || "pending",
     paymentStatus: order?.paymentStatus || "pending",
-    fulfillmentStatus:
-      order?.fulfillmentStatus || "pending",
+    fulfillmentStatus: order?.fulfillmentStatus || "pending",
     pickupLocation: order?.pickupLocation || "—",
     deliveryLocation: order?.deliveryLocation || "—",
     placedAt: order?.placedAt || order?.createdAt || null,
@@ -187,34 +191,35 @@ const normalizeDemand = (demand) => {
   };
 };
 
-/** Render the buyer dashboard with order, demand, and verification activity. */
 export default function BuyerDashboardPage({ user }) {
   const navigate = useNavigate();
 
-  const [verificationOpen, setVerificationOpen] =
-    useState(false);
+  const [verificationOpen, setVerificationOpen] = useState(false);
   const [questionOpen, setQuestionOpen] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState(null);
 
-  const [questionType, setQuestionType] =
-    useState("Payment");
+  const [questionType, setQuestionType] = useState("Payment");
   const [questionText, setQuestionText] = useState("");
-  const [questionSubmitted, setQuestionSubmitted] =
-    useState(false);
+  const [questionSubmitted, setQuestionSubmitted] = useState(false);
+  const [questionSubmitting, setQuestionSubmitting] = useState(false);
+  const [questionError, setQuestionError] = useState("");
 
   const [lots, setLots] = useState([]);
   const [marketWatch, setMarketWatch] = useState([]);
-  const [recentProcurement, setRecentProcurement] =
-    useState([]);
+  const [recentProcurement, setRecentProcurement] = useState([]);
+
+  const [orderSummary, setOrderSummary] = useState({
+    purchasedQuantity: 0,
+    completedPurchases: 0,
+    totalPurchaseValue: 0,
+  });
+
   const [activeDemands, setActiveDemands] = useState([]);
-  const [activeDemandCount, setActiveDemandCount] =
-    useState(0);
+  const [activeDemandCount, setActiveDemandCount] = useState(0);
 
   const [verification, setVerification] = useState(null);
-  const [verificationLoading, setVerificationLoading] =
-    useState(false);
-  const [verificationError, setVerificationError] =
-    useState("");
+  const [verificationLoading, setVerificationLoading] = useState(false);
+  const [verificationError, setVerificationError] = useState("");
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -225,12 +230,8 @@ export default function BuyerDashboardPage({ user }) {
     user?.organizationName ||
     "Buyer";
 
-  const buyerLocation = [
-    user?.district,
-    user?.state,
-  ]
-    .filter(Boolean)
-    .join(", ") || "—";
+  const buyerLocation =
+    [user?.district, user?.state].filter(Boolean).join(", ") || "—";
 
   useEffect(() => {
     let cancelled = false;
@@ -267,29 +268,19 @@ export default function BuyerDashboardPage({ user }) {
           return;
         }
 
-        const normalizedLots = Array.isArray(
-          lotsResponse?.lots
-        )
+        const normalizedLots = Array.isArray(lotsResponse?.lots)
           ? lotsResponse.lots.map(normalizeLot)
           : [];
 
-        const normalizedOrders = Array.isArray(
-          ordersResponse?.orders
-        )
+        const normalizedOrders = Array.isArray(ordersResponse?.orders)
           ? ordersResponse.orders.map(normalizeOrder)
           : [];
 
-        const normalizedDemands = Array.isArray(
-          demandsResponse?.demands
-        )
+        const normalizedDemands = Array.isArray(demandsResponse?.demands)
           ? demandsResponse.demands.map(normalizeDemand)
           : [];
 
-        setLots(
-          normalizedLots.filter(
-            (lot) => lot.quantity > 0
-          )
-        );
+        setLots(normalizedLots.filter((lot) => lot.quantity > 0));
 
         setMarketWatch(
           Array.isArray(mandiResponse?.prices)
@@ -303,19 +294,15 @@ export default function BuyerDashboardPage({ user }) {
         setActiveDemands(normalizedDemands);
 
         setActiveDemandCount(
-          Number(
-            demandsResponse?.pagination?.total
-          ) || normalizedDemands.length
+          Number(demandsResponse?.pagination?.total) ||
+            normalizedDemands.length
         );
       } catch (requestError) {
-        if (cancelled) {
-          return;
+        if (!cancelled) {
+          setError(
+            requestError?.message || "Unable to load buyer dashboard."
+          );
         }
-
-        setError(
-          requestError?.message ||
-            "Unable to load buyer dashboard."
-        );
       } finally {
         if (!cancelled) {
           setLoading(false);
@@ -323,7 +310,37 @@ export default function BuyerDashboardPage({ user }) {
       }
     };
 
+    const loadOrderSummary = async () => {
+      try {
+        const response = await getBuyerOrderSummary();
+
+        if (cancelled) {
+          return;
+        }
+
+        const summary = response?.summary;
+
+        if (!summary) {
+          throw new Error("Invalid buyer order summary response.");
+        }
+
+        setOrderSummary({
+          purchasedQuantity: Number(summary.purchasedQuantity) || 0,
+          completedPurchases: Number(summary.completedPurchases) || 0,
+          totalPurchaseValue: Number(summary.totalPurchaseValue) || 0,
+        });
+      } catch (requestError) {
+        if (!cancelled) {
+          console.error(
+            "Unable to load buyer order summary:",
+            requestError
+          );
+        }
+      }
+    };
+
     loadDashboard();
+    loadOrderSummary();
 
     return () => {
       cancelled = true;
@@ -344,9 +361,7 @@ export default function BuyerDashboardPage({ user }) {
           return;
         }
 
-        setVerification(
-          response?.verification || null
-        );
+        setVerification(response?.verification || null);
       } catch (requestError) {
         if (cancelled) {
           return;
@@ -373,76 +388,46 @@ export default function BuyerDashboardPage({ user }) {
 
   const availableLotCount = useMemo(() => {
     return lots.filter(
-      (lot) =>
-        lot.status === "listed" &&
-        lot.quantity > 0
+      (lot) => lot.status === "listed" && lot.quantity > 0
     ).length;
   }, [lots]);
-
-  const totalPurchased = useMemo(() => {
-    return recentProcurement.reduce(
-      (total, order) => {
-        return total + (Number(order.quantity) || 0);
-      },
-      0
-    );
-  }, [recentProcurement]);
 
   const bestMandiPrice = useMemo(() => {
     const modalPrices = marketWatch
       .map((item) => Number(item?.modal_price))
       .filter((price) => Number.isFinite(price));
 
-    if (!modalPrices.length) {
-      return null;
-    }
-
-    return Math.max(...modalPrices);
+    return modalPrices.length ? Math.max(...modalPrices) : null;
   }, [marketWatch]);
 
   const priceAlerts = useMemo(() => {
     return marketWatch
-      .filter((item) => {
-        const modalPrice = Number(
-          item?.modal_price
-        );
-
-        return Number.isFinite(modalPrice);
-      })
+      .filter((item) => Number.isFinite(Number(item?.modal_price)))
       .slice(0, 3)
       .map((item) => ({
-        id:
-          item?._id ||
-          `${item?.commodity}-${item?.market}`,
+        id: item?._id || `${item?.commodity}-${item?.market}`,
         commodity: item?.commodity || "Commodity",
         market: item?.market || "Market",
         price: Number(item?.modal_price) || 0,
       }));
   }, [marketWatch]);
 
-  const isVerified =
-    verification?.status === "approved";
+  const isVerified = verification?.status === "approved";
 
   const verificationRows = [
     {
       label: "Account",
-      value:
-        verification?.name ||
-        buyerName,
+      value: verification?.name || buyerName,
       icon: UserRound,
     },
     {
       label: "Organization",
-      value:
-        verification?.businessName ||
-        "—",
+      value: verification?.businessName || "—",
       icon: Building2,
     },
     {
       label: "Mobile",
-      value:
-        verification?.phone ||
-        "—",
+      value: verification?.phone || "—",
       icon: UserRound,
     },
     {
@@ -455,44 +440,32 @@ export default function BuyerDashboardPage({ user }) {
     },
     {
       label: "Verification Status",
-      value: getVerificationStatusLabel(
-        verification?.status
-      ),
+      value: getVerificationStatusLabel(verification?.status),
       icon: ShieldCheck,
     },
     {
       label: "PAN",
-      value: getDocumentStatus(
-        verification?.documents?.pan
-      ),
+      value: getDocumentStatus(verification?.documents?.pan),
       icon: FileCheck2,
     },
     {
       label: "GST",
-      value: getDocumentStatus(
-        verification?.documents?.gst
-      ),
+      value: getDocumentStatus(verification?.documents?.gst),
       icon: FileCheck2,
     },
     {
       label: "Business Proof",
-      value: getDocumentStatus(
-        verification?.documents?.businessProof
-      ),
+      value: getDocumentStatus(verification?.documents?.businessProof),
       icon: FileCheck2,
     },
     {
       label: "Bank Proof",
-      value: getDocumentStatus(
-        verification?.documents?.bankProof
-      ),
+      value: getDocumentStatus(verification?.documents?.bankProof),
       icon: FileCheck2,
     },
     {
       label: "Submitted",
-      value: formatDate(
-        verification?.submittedAt
-      ),
+      value: formatDate(verification?.submittedAt),
       icon: CalendarDays,
     },
   ];
@@ -501,32 +474,71 @@ export default function BuyerDashboardPage({ user }) {
     setSelectedOrder(order);
     setQuestionType("Payment");
     setQuestionText("");
+    setQuestionError("");
     setQuestionSubmitted(false);
     setQuestionOpen(true);
   };
 
   const handleCloseQuestion = () => {
-    setQuestionOpen(false);
-    setSelectedOrder(null);
-    setQuestionText("");
-    setQuestionSubmitted(false);
-  };
-
-  const handleSubmitQuestion = (event) => {
-    event.preventDefault();
-
-    if (!selectedOrder || !questionText.trim()) {
+    if (questionSubmitting) {
       return;
     }
 
-    console.log("RAISE QUESTION:", {
-      orderId: selectedOrder.id,
-      lotId: selectedOrder.lotId,
-      issue: questionType,
-      description: questionText.trim(),
-    });
+    setQuestionOpen(false);
+    setSelectedOrder(null);
+    setQuestionText("");
+    setQuestionError("");
+    setQuestionSubmitted(false);
+  };
 
-    setQuestionSubmitted(true);
+  const handleSubmitQuestion = async (event) => {
+    event.preventDefault();
+
+    const description = questionText.trim();
+
+    if (!selectedOrder?.id) {
+      setQuestionError("A valid order is required.");
+      return;
+    }
+
+    if (description.length < 10) {
+      setQuestionError(
+        "Please provide at least 10 characters describing the issue."
+      );
+      return;
+    }
+
+    if (description.length > 1000) {
+      setQuestionError("Description cannot exceed 1000 characters.");
+      return;
+    }
+
+    const disputeType = QUESTION_TYPE_TO_DISPUTE_TYPE[questionType];
+
+    if (!disputeType) {
+      setQuestionError("Please select a valid issue type.");
+      return;
+    }
+
+    setQuestionSubmitting(true);
+    setQuestionError("");
+
+    try {
+      await createDispute({
+        orderId: selectedOrder.id,
+        type: disputeType,
+        description,
+      });
+
+      setQuestionSubmitted(true);
+    } catch (requestError) {
+      setQuestionError(
+        requestError?.message ||
+          "Unable to submit your question. Please try again."
+      );
+    } finally {
+      setQuestionSubmitting(false);
+    }
   };
 
   const handleBrowseLots = () => {
@@ -566,15 +578,9 @@ export default function BuyerDashboardPage({ user }) {
         {error && (
           <div className="mb-6 flex items-start gap-3 rounded-xl border border-red-200 bg-red-50 p-4 text-red-700">
             <AlertCircle className="mt-0.5 h-5 w-5 shrink-0" />
-
             <div>
-              <p className="font-medium">
-                Unable to load dashboard data
-              </p>
-
-              <p className="mt-1 text-sm">
-                {error}
-              </p>
+              <p className="font-medium">Unable to load dashboard data</p>
+              <p className="mt-1 text-sm">{error}</p>
             </div>
           </div>
         )}
@@ -585,11 +591,9 @@ export default function BuyerDashboardPage({ user }) {
               <p className="text-sm font-medium text-emerald-600">
                 Buyer Dashboard
               </p>
-
               <h1 className="mt-1 text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl">
                 Welcome back, {buyerName}
               </h1>
-
               <p className="mt-2 flex items-center gap-2 text-sm text-slate-500">
                 <MapPin className="h-4 w-4" />
                 {buyerLocation}
@@ -633,19 +637,14 @@ export default function BuyerDashboardPage({ user }) {
               <div className="rounded-xl bg-emerald-50 p-2.5 text-emerald-600">
                 <Package className="h-5 w-5" />
               </div>
-
               <span className="text-xs font-medium text-slate-400">
                 Available
               </span>
             </div>
-
             <p className="mt-4 text-2xl font-bold text-slate-900">
               {availableLotCount}
             </p>
-
-            <p className="mt-1 text-sm text-slate-500">
-              Available Lots
-            </p>
+            <p className="mt-1 text-sm text-slate-500">Available Lots</p>
           </div>
 
           <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
@@ -653,21 +652,14 @@ export default function BuyerDashboardPage({ user }) {
               <div className="rounded-xl bg-blue-50 p-2.5 text-blue-600">
                 <ShoppingCart className="h-5 w-5" />
               </div>
-
               <span className="text-xs font-medium text-slate-400">
-                Recent
+                Lifetime
               </span>
             </div>
-
             <p className="mt-4 text-2xl font-bold text-slate-900">
-              {totalPurchased > 0
-                ? `${totalPurchased.toLocaleString("en-IN")} q`
-                : "—"}
+              {orderSummary.purchasedQuantity.toLocaleString("en-IN")} q
             </p>
-
-            <p className="mt-1 text-sm text-slate-500">
-              Purchased Quantity
-            </p>
+            <p className="mt-1 text-sm text-slate-500">Purchased Quantity</p>
           </div>
 
           <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
@@ -675,18 +667,15 @@ export default function BuyerDashboardPage({ user }) {
               <div className="rounded-xl bg-amber-50 p-2.5 text-amber-600">
                 <Bell className="h-5 w-5" />
               </div>
-
               <span className="text-xs font-medium text-slate-400">
                 Market
               </span>
             </div>
-
             <p className="mt-4 text-2xl font-bold text-slate-900">
-              {bestMandiPrice
+              {bestMandiPrice !== null
                 ? formatCurrency(bestMandiPrice)
                 : "—"}
             </p>
-
             <p className="mt-1 text-sm text-slate-500">
               Highest Modal Price
             </p>
@@ -697,19 +686,14 @@ export default function BuyerDashboardPage({ user }) {
               <div className="rounded-xl bg-violet-50 p-2.5 text-violet-600">
                 <CircleHelp className="h-5 w-5" />
               </div>
-
               <span className="text-xs font-medium text-slate-400">
                 Active
               </span>
             </div>
-
             <p className="mt-4 text-2xl font-bold text-slate-900">
               {activeDemandCount}
             </p>
-
-            <p className="mt-1 text-sm text-slate-500">
-              Active Demands
-            </p>
+            <p className="mt-1 text-sm text-slate-500">Active Demands</p>
           </div>
         </section>
 
@@ -717,15 +701,11 @@ export default function BuyerDashboardPage({ user }) {
           <div className="rounded-2xl border border-slate-200 bg-white shadow-sm">
             <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4">
               <div>
-                <h2 className="font-semibold text-slate-900">
-                  Available Lots
-                </h2>
-
+                <h2 className="font-semibold text-slate-900">Available Lots</h2>
                 <p className="mt-1 text-xs text-slate-500">
                   Live lots currently available for procurement
                 </p>
               </div>
-
               <button
                 type="button"
                 onClick={handleBrowseLots}
@@ -752,33 +732,23 @@ export default function BuyerDashboardPage({ user }) {
                         <h3 className="truncate font-semibold text-slate-900">
                           {lot.commodity}
                         </h3>
-
                         <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700">
                           {lot.grade}
                         </span>
                       </div>
-
                       <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-500">
                         <span>
-                          {lot.quantity.toLocaleString(
-                            "en-IN"
-                          )}{" "}
-                          {lot.unit}
+                          {lot.quantity.toLocaleString("en-IN")} {lot.unit}
                         </span>
-
                         <span>
-                          {formatCurrency(
-                            lot.expectedPrice
-                          )} / {lot.unit}
+                          {formatCurrency(lot.expectedPrice)} / {lot.unit}
                         </span>
-
                         <span className="flex items-center gap-1">
                           <MapPin className="h-3.5 w-3.5" />
                           {lot.pickupLocation}
                         </span>
                       </div>
                     </div>
-
                     <button
                       type="button"
                       onClick={handleBrowseLots}
@@ -795,15 +765,11 @@ export default function BuyerDashboardPage({ user }) {
 
           <div className="rounded-2xl border border-slate-200 bg-white shadow-sm">
             <div className="border-b border-slate-100 px-5 py-4">
-              <h2 className="font-semibold text-slate-900">
-                Market Watch
-              </h2>
-
+              <h2 className="font-semibold text-slate-900">Market Watch</h2>
               <p className="mt-1 text-xs text-slate-500">
                 Latest available mandi modal prices
               </p>
             </div>
-
             <div className="divide-y divide-slate-100">
               {priceAlerts.length === 0 ? (
                 <div className="px-5 py-10 text-center text-sm text-slate-500">
@@ -819,12 +785,10 @@ export default function BuyerDashboardPage({ user }) {
                       <p className="truncate font-medium text-slate-900">
                         {item.commodity}
                       </p>
-
                       <p className="mt-1 truncate text-xs text-slate-500">
                         {item.market}
                       </p>
                     </div>
-
                     <p className="shrink-0 font-semibold text-slate-900">
                       {formatCurrency(item.price)}
                     </p>
@@ -839,15 +803,11 @@ export default function BuyerDashboardPage({ user }) {
           <div className="rounded-2xl border border-slate-200 bg-white shadow-sm">
             <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4">
               <div>
-                <h2 className="font-semibold text-slate-900">
-                  Active Demands
-                </h2>
-
+                <h2 className="font-semibold text-slate-900">Active Demands</h2>
                 <p className="mt-1 text-xs text-slate-500">
                   Your active procurement requirements
                 </p>
               </div>
-
               <button
                 type="button"
                 onClick={handleViewDemands}
@@ -865,48 +825,27 @@ export default function BuyerDashboardPage({ user }) {
                 </div>
               ) : (
                 activeDemands.map((demand) => (
-                  <div
-                    key={demand.id}
-                    className="px-5 py-4"
-                  >
+                  <div key={demand.id} className="px-5 py-4">
                     <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                       <div>
                         <div className="flex items-center gap-2">
                           <h3 className="font-semibold text-slate-900">
                             {demand.commodity}
                           </h3>
-
                           <span className="rounded-full bg-blue-50 px-2 py-0.5 text-xs font-medium text-blue-700">
-                            {getStatusLabel(
-                              demand.status
-                            )}
+                            {getStatusLabel(demand.status)}
                           </span>
                         </div>
-
                         <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-500">
                           <span>
-                            {demand.quantity.toLocaleString(
-                              "en-IN"
-                            )}{" "}
-                            {demand.unit}
+                            {demand.quantity.toLocaleString("en-IN")} {demand.unit}
                           </span>
-
                           <span>
-                            Up to{" "}
-                            {formatCurrency(
-                              demand.estimatedPrice
-                            )}
+                            Up to {formatCurrency(demand.estimatedPrice)}
                           </span>
-
-                          <span>
-                            Deadline{" "}
-                            {formatDate(
-                              demand.deadline
-                            )}
-                          </span>
+                          <span>Deadline {formatDate(demand.deadline)}</span>
                         </div>
                       </div>
-
                       <div className="flex items-center gap-1 text-xs text-slate-500">
                         <MapPin className="h-3.5 w-3.5" />
                         {demand.deliveryLocation}
@@ -924,12 +863,10 @@ export default function BuyerDashboardPage({ user }) {
                 <h2 className="font-semibold text-slate-900">
                   Recent Procurement
                 </h2>
-
                 <p className="mt-1 text-xs text-slate-500">
                   Your latest purchase orders
                 </p>
               </div>
-
               <button
                 type="button"
                 onClick={handleViewPayments}
@@ -947,53 +884,32 @@ export default function BuyerDashboardPage({ user }) {
                 </div>
               ) : (
                 recentProcurement.map((order) => (
-                  <div
-                    key={order.id}
-                    className="px-5 py-4"
-                  >
+                  <div key={order.id} className="px-5 py-4">
                     <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                       <div className="min-w-0">
                         <div className="flex items-center gap-2">
                           <p className="font-semibold text-slate-900">
                             {order.orderNumber}
                           </p>
-
                           <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-600">
-                            {getStatusLabel(
-                              order.status
-                            )}
+                            {getStatusLabel(order.status)}
                           </span>
                         </div>
-
                         <p className="mt-1 text-xs text-slate-500">
-                          {order.quantity.toLocaleString(
-                            "en-IN"
-                          )}{" "}
-                          {order.unit} ·{" "}
-                          {formatCurrency(
-                            order.pricePerUnit
-                          )}{" "}
-                          / {order.unit}
+                          {order.quantity.toLocaleString("en-IN")} {order.unit} ·{" "}
+                          {formatCurrency(order.pricePerUnit)} / {order.unit}
                         </p>
-
                         <p className="mt-1 text-xs text-slate-400">
-                          Placed{" "}
-                          {formatDate(order.placedAt)}
+                          Placed {formatDate(order.placedAt)}
                         </p>
                       </div>
-
                       <div className="flex items-center justify-between gap-4 sm:block sm:text-right">
                         <p className="font-semibold text-slate-900">
-                          {formatCurrency(
-                            order.totalAmount
-                          )}
+                          {formatCurrency(order.totalAmount)}
                         </p>
-
                         <button
                           type="button"
-                          onClick={() =>
-                            handleOpenQuestion(order)
-                          }
+                          onClick={() => handleOpenQuestion(order)}
                           className="mt-1 text-xs font-medium text-emerald-600 hover:text-emerald-700"
                         >
                           Raise Question
@@ -1013,17 +929,14 @@ export default function BuyerDashboardPage({ user }) {
               <div>
                 <div className="flex items-center gap-2">
                   <ShieldCheck className="h-5 w-5 text-emerald-600" />
-
                   <h2 className="font-semibold text-slate-900">
                     Buyer Verification
                   </h2>
                 </div>
-
                 <p className="mt-2 text-sm text-slate-500">
                   Verification information linked to your buyer account.
                 </p>
               </div>
-
               <span
                 className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs font-semibold ${
                   isVerified
@@ -1036,10 +949,7 @@ export default function BuyerDashboardPage({ user }) {
                 ) : (
                   <Clock3 className="h-3.5 w-3.5" />
                 )}
-
-                {getVerificationStatusLabel(
-                  verification?.status
-                )}
+                {getVerificationStatusLabel(verification?.status)}
               </span>
             </div>
 
@@ -1048,21 +958,16 @@ export default function BuyerDashboardPage({ user }) {
                 <p className="text-xs font-medium text-slate-500">
                   Organization
                 </p>
-
                 <p className="mt-1 truncate font-semibold text-slate-900">
-                  {verification?.businessName ||
-                    "—"}
+                  {verification?.businessName || "—"}
                 </p>
               </div>
-
               <div className="rounded-xl bg-slate-50 p-4">
                 <p className="text-xs font-medium text-slate-500">
                   Business Type
                 </p>
-
                 <p className="mt-1 truncate font-semibold text-slate-900">
-                  {verification?.businessType ||
-                    "—"}
+                  {verification?.businessType || "—"}
                 </p>
               </div>
             </div>
@@ -1082,12 +987,10 @@ export default function BuyerDashboardPage({ user }) {
               <div className="rounded-xl bg-amber-50 p-2.5 text-amber-600">
                 <Star className="h-5 w-5" />
               </div>
-
               <div>
                 <h2 className="font-semibold text-slate-900">
                   Buyer Performance
                 </h2>
-
                 <p className="mt-1 text-sm text-slate-500">
                   Performance metrics will be shown when the corresponding backend data is available.
                 </p>
@@ -1099,40 +1002,27 @@ export default function BuyerDashboardPage({ user }) {
                 <p className="text-xs font-medium text-slate-500">
                   Buyer Rating
                 </p>
-
-                <p className="mt-1 text-xl font-bold text-slate-900">
-                  —
-                </p>
+                <p className="mt-1 text-xl font-bold text-slate-900">—</p>
               </div>
-
               <div className="rounded-xl border border-slate-100 p-4">
                 <p className="text-xs font-medium text-slate-500">
                   Lots Matched
                 </p>
-
-                <p className="mt-1 text-xl font-bold text-slate-900">
-                  —
-                </p>
+                <p className="mt-1 text-xl font-bold text-slate-900">—</p>
               </div>
-
               <div className="rounded-xl border border-slate-100 p-4">
                 <p className="text-xs font-medium text-slate-500">
                   Completed Purchases
                 </p>
-
                 <p className="mt-1 text-xl font-bold text-slate-900">
-                  —
+                  {orderSummary.completedPurchases.toLocaleString("en-IN")}
                 </p>
               </div>
-
               <div className="rounded-xl border border-slate-100 p-4">
                 <p className="text-xs font-medium text-slate-500">
                   Disputes
                 </p>
-
-                <p className="mt-1 text-xl font-bold text-slate-900">
-                  —
-                </p>
+                <p className="mt-1 text-xl font-bold text-slate-900">—</p>
               </div>
             </div>
           </div>
@@ -1144,44 +1034,30 @@ export default function BuyerDashboardPage({ user }) {
               <div className="rounded-xl bg-blue-50 p-2.5 text-blue-600">
                 <Truck className="h-5 w-5" />
               </div>
-
               <div>
-                <p className="font-semibold text-slate-900">
-                  Logistics
-                </p>
-
+                <p className="font-semibold text-slate-900">Logistics</p>
                 <p className="mt-1 text-xs text-slate-500">
                   Track fulfillment and transportation for confirmed orders.
                 </p>
               </div>
             </div>
-
             <div className="flex items-start gap-3">
               <div className="rounded-xl bg-emerald-50 p-2.5 text-emerald-600">
                 <CheckCircle2 className="h-5 w-5" />
               </div>
-
               <div>
-                <p className="font-semibold text-slate-900">
-                  Procurement
-                </p>
-
+                <p className="font-semibold text-slate-900">Procurement</p>
                 <p className="mt-1 text-xs text-slate-500">
                   Review your latest orders and payment status.
                 </p>
               </div>
             </div>
-
             <div className="flex items-start gap-3">
               <div className="rounded-xl bg-violet-50 p-2.5 text-violet-600">
                 <CircleHelp className="h-5 w-5" />
               </div>
-
               <div>
-                <p className="font-semibold text-slate-900">
-                  Support
-                </p>
-
+                <p className="font-semibold text-slate-900">Support</p>
                 <p className="mt-1 text-xs text-slate-500">
                   Raise a question against a specific procurement order.
                 </p>
@@ -1199,17 +1075,13 @@ export default function BuyerDashboardPage({ user }) {
                 <h2 className="font-semibold text-slate-900">
                   Verification Details
                 </h2>
-
                 <p className="mt-1 text-xs text-slate-500">
                   Current verification information from your account.
                 </p>
               </div>
-
               <button
                 type="button"
-                onClick={() =>
-                  setVerificationOpen(false)
-                }
+                onClick={() => setVerificationOpen(false)}
                 className="rounded-lg p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
                 aria-label="Close verification details"
               >
@@ -1230,11 +1102,9 @@ export default function BuyerDashboardPage({ user }) {
               ) : !verification ? (
                 <div className="rounded-xl border border-slate-200 bg-slate-50 p-6 text-center">
                   <ShieldCheck className="mx-auto h-8 w-8 text-slate-400" />
-
                   <p className="mt-3 font-medium text-slate-700">
                     Verification not submitted
                   </p>
-
                   <p className="mt-1 text-sm text-slate-500">
                     No verification record is currently available for this buyer account.
                   </p>
@@ -1250,16 +1120,11 @@ export default function BuyerDashboardPage({ user }) {
                       <p className="text-xs font-medium">
                         Verification Status
                       </p>
-
                       <p className="mt-1 text-lg font-bold">
-                        {getVerificationStatusLabel(
-                          verification.status
-                        )}
+                        {getVerificationStatusLabel(verification.status)}
                       </p>
                     </div>
-
-                    {verification.status ===
-                    "approved" ? (
+                    {verification.status === "approved" ? (
                       <BadgeCheck className="h-7 w-7" />
                     ) : (
                       <Clock3 className="h-7 w-7" />
@@ -1267,59 +1132,41 @@ export default function BuyerDashboardPage({ user }) {
                   </div>
 
                   <div className="grid gap-3 sm:grid-cols-2">
-                    {verificationRows.map(
-                      ({
-                        label,
-                        value,
-                        icon: Icon,
-                      }) => {
-                        const isDocument =
-                          [
-                            "PAN",
-                            "GST",
-                            "Business Proof",
-                            "Bank Proof",
-                          ].includes(label);
+                    {verificationRows.map(({ label, value, icon: Icon }) => {
+                      const documentKeys = {
+                        PAN: "pan",
+                        GST: "gst",
+                        "Business Proof": "businessProof",
+                        "Bank Proof": "bankProof",
+                      };
 
-                        const documentValue =
-                          isDocument
-                            ? verification?.documents?.[
-                                label === "PAN"
-                                  ? "pan"
-                                  : label === "GST"
-                                    ? "gst"
-                                    : label ===
-                                        "Business Proof"
-                                      ? "businessProof"
-                                      : "bankProof"
-                              ]
-                            : null;
+                      const documentKey = documentKeys[label];
+                      const isDocument = Boolean(documentKey);
+                      const documentValue = isDocument
+                        ? verification?.documents?.[documentKey]
+                        : null;
 
-                        return (
-                          <div
-                            key={label}
-                            className="rounded-xl border border-slate-100 p-4"
-                          >
-                            <div className="flex items-center gap-2 text-xs font-medium text-slate-500">
-                              <Icon className="h-4 w-4" />
-                              {label}
-                            </div>
-
-                            <p
-                              className={`mt-2 text-sm font-semibold ${
-                                isDocument
-                                  ? getDocumentStatusClass(
-                                      documentValue
-                                    )
-                                  : "text-slate-900"
-                              }`}
-                            >
-                              {value}
-                            </p>
+                      return (
+                        <div
+                          key={label}
+                          className="rounded-xl border border-slate-100 p-4"
+                        >
+                          <div className="flex items-center gap-2 text-xs font-medium text-slate-500">
+                            <Icon className="h-4 w-4" />
+                            {label}
                           </div>
-                        );
-                      }
-                    )}
+                          <p
+                            className={`mt-2 text-sm font-semibold ${
+                              isDocument
+                                ? getDocumentStatusClass(documentValue)
+                                : "text-slate-900"
+                            }`}
+                          >
+                            {value}
+                          </p>
+                        </div>
+                      );
+                    })}
                   </div>
 
                   {verification.rejectionReason && (
@@ -1327,7 +1174,6 @@ export default function BuyerDashboardPage({ user }) {
                       <p className="text-xs font-semibold text-red-700">
                         Rejection Reason
                       </p>
-
                       <p className="mt-1 text-sm text-red-600">
                         {verification.rejectionReason}
                       </p>
@@ -1336,10 +1182,7 @@ export default function BuyerDashboardPage({ user }) {
 
                   {verification.reviewedAt && (
                     <p className="mt-5 text-xs text-slate-500">
-                      Reviewed on{" "}
-                      {formatDate(
-                        verification.reviewedAt
-                      )}
+                      Reviewed on {formatDate(verification.reviewedAt)}
                     </p>
                   )}
                 </>
@@ -1357,16 +1200,15 @@ export default function BuyerDashboardPage({ user }) {
                 <h2 className="font-semibold text-slate-900">
                   Raise Question
                 </h2>
-
                 <p className="mt-1 text-xs text-slate-500">
                   {selectedOrder?.orderNumber || "Order"}
                 </p>
               </div>
-
               <button
                 type="button"
                 onClick={handleCloseQuestion}
-                className="rounded-lg p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
+                disabled={questionSubmitting}
+                className="rounded-lg p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-600 disabled:cursor-not-allowed disabled:opacity-50"
                 aria-label="Close question dialog"
               >
                 <X className="h-5 w-5" />
@@ -1376,15 +1218,12 @@ export default function BuyerDashboardPage({ user }) {
             {questionSubmitted ? (
               <div className="p-6 text-center">
                 <CheckCircle2 className="mx-auto h-10 w-10 text-emerald-600" />
-
                 <h3 className="mt-4 font-semibold text-slate-900">
-                  Question recorded
+                  Dispute Submitted
                 </h3>
-
                 <p className="mt-2 text-sm text-slate-500">
-                  Your question has been captured for this order.
+                  Your dispute has been submitted successfully and recorded against this order.
                 </p>
-
                 <button
                   type="button"
                   onClick={handleCloseQuestion}
@@ -1394,10 +1233,7 @@ export default function BuyerDashboardPage({ user }) {
                 </button>
               </div>
             ) : (
-              <form
-                onSubmit={handleSubmitQuestion}
-                className="space-y-5 p-5"
-              >
+              <form onSubmit={handleSubmitQuestion} className="space-y-5 p-5">
                 <div>
                   <label
                     htmlFor="questionType"
@@ -1405,36 +1241,18 @@ export default function BuyerDashboardPage({ user }) {
                   >
                     Issue Type
                   </label>
-
                   <select
                     id="questionType"
                     value={questionType}
-                    onChange={(event) =>
-                      setQuestionType(
-                        event.target.value
-                      )
-                    }
-                    className="w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100"
+                    onChange={(event) => setQuestionType(event.target.value)}
+                    disabled={questionSubmitting}
+                    className="w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 disabled:bg-slate-50"
                   >
-                    <option value="Payment">
-                      Payment
-                    </option>
-
-                    <option value="Order">
-                      Order
-                    </option>
-
-                    <option value="Logistics">
-                      Logistics
-                    </option>
-
-                    <option value="Quality">
-                      Quality
-                    </option>
-
-                    <option value="Other">
-                      Other
-                    </option>
+                    <option value="Payment">Payment</option>
+                    <option value="Order">Order</option>
+                    <option value="Logistics">Logistics</option>
+                    <option value="Quality">Quality</option>
+                    <option value="Other">Other</option>
                   </select>
                 </div>
 
@@ -1445,41 +1263,52 @@ export default function BuyerDashboardPage({ user }) {
                   >
                     Description
                   </label>
-
                   <textarea
                     id="questionText"
                     value={questionText}
-                    onChange={(event) =>
-                      setQuestionText(
-                        event.target.value
-                      )
-                    }
+                    onChange={(event) => {
+                      setQuestionText(event.target.value);
+                      setQuestionError("");
+                    }}
                     rows={5}
                     maxLength={1000}
-                    placeholder="Describe the issue..."
-                    className="w-full resize-none rounded-xl border border-slate-300 px-3 py-2.5 text-sm outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100"
+                    minLength={10}
+                    required
+                    disabled={questionSubmitting}
+                    placeholder="Describe the issue in at least 10 characters..."
+                    className="w-full resize-none rounded-xl border border-slate-300 px-3 py-2.5 text-sm outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 disabled:bg-slate-50"
                   />
-
                   <p className="mt-1 text-right text-xs text-slate-400">
                     {questionText.length}/1000
                   </p>
+                  {questionError && (
+                    <div
+                      role="alert"
+                      className="mt-3 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700"
+                    >
+                      {questionError}
+                    </div>
+                  )}
                 </div>
 
                 <div className="flex justify-end gap-3">
                   <button
                     type="button"
                     onClick={handleCloseQuestion}
-                    className="rounded-xl border border-slate-300 px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+                    disabled={questionSubmitting}
+                    className="rounded-xl border border-slate-300 px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     Cancel
                   </button>
-
                   <button
                     type="submit"
-                    disabled={!questionText.trim()}
+                    disabled={
+                      questionSubmitting ||
+                      questionText.trim().length < 10
+                    }
                     className="rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50"
                   >
-                    Submit Question
+                    {questionSubmitting ? "Submitting..." : "Submit Question"}
                   </button>
                 </div>
               </form>
